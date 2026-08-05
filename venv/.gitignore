@@ -1,0 +1,7 @@
+# Examples of commonly ignored items:
+node_modules/
+.env
+venv/
+__pycache__/
+*.log
+.DS_Store

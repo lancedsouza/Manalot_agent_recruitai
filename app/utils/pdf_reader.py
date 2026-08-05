@@ -129,6 +129,8 @@ for file in pdf_files:
 
 
 
-
-
-    
+def extract_experience(resume_text: str) -> list[str]:
+    """
+    Extracts skills from the resume text using regex
+    """
+   experience_pattern = r"(?i)(?<=experience:)(.*?)(?=\n|$)"
