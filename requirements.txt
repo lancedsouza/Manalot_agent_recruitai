@@ -1,0 +1,7 @@
+pydantic
+fastapi
+langgraph
+langchain
+pdfplumber
+path
+instructor
