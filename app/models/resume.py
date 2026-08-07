@@ -1,24 +1,25 @@
 # app/models/resume.py
 
-from pydantic import BaseModel
+from typing import Optional, List
+from pydantic import BaseModel, Field
 
 
 class Education(BaseModel):
-    degree: str
-    institution: str
-    start_date: str
-    end_date: str
+    degree: Optional[str] = None
+    institution: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 class Experience(BaseModel):
-    company: str
-    title: str
-    start_date: str
-    end_date: str
+    company: Optional[str] = None
+    title: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
 
 class Resume(BaseModel):
-    name: str
-    skills: list[str]
-    experience_years: float
-    education: list[Education]
-    experience: list[Experience]
-    projects: list[str]
+    name: Optional[str] = None
+    skills: List[str] = Field(default_factory=list)
+    experience_years: Optional[float] = 0.0
+    education: List[Education] = Field(default_factory=list)
+    experience: List[Experience] = Field(default_factory=list)
+    projects: List[str] = Field(default_factory=list)
