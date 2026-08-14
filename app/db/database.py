@@ -1,18 +1,25 @@
+import os
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base,sessionmaker
 
+load_dotenv()
 
-DATABASE_URL = (
-    "postgresql+psycopg2://"
-    "recruitai:recruitai_password"
-    "@localhost:5431/recruitai"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL not found in .env")
+
 engine = create_engine(
     DATABASE_URL,
-    echo=True  # ← Logs all SQL queries
+    echo=True
 )
+
+Base = declarative_base()
+
 SessionLocal = sessionmaker(
-    bind=engine,        # Use this engine
-    autoflush=False,    # Don't auto-flush
-    autocommit=False    # Don't auto-commit (use transactions)
+    bind=engine,
+    autoflush=False,
+    autocommit=False
 )
