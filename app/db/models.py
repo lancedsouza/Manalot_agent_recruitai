@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, Text
 from sqlalchemy.dialects.postgresql import ARRAY
-
+from pgvector.sqlalchemy import Vector
 from app.db.database import Base
 
 
@@ -11,17 +11,17 @@ class Candidate(Base):
     id = Column(
         Integer,
         primary_key=True,
-        nullable=False
+        nullable=False,
     )
 
     name = Column(
         String,
-        nullable=False
+        nullable=False,
     )
 
     experience_years = Column(
         Float,
-        nullable=False
+        nullable=False,
     )
 
     skills = Column(
@@ -30,4 +30,8 @@ class Candidate(Base):
 
     resume_text = Column(
         Text
+    )
+
+    embedding = Column(
+        Vector(768)
     )

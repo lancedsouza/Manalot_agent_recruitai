@@ -1,57 +1,65 @@
 from app.db.database import SessionLocal
 from app.db.models import Candidate
 from app.models.resume import Resume
+from app.services.embedding_service import create_embedding
 
 
 def save_resume_to_db(
     resume: Resume,
     resume_text: str,
 ) -> Candidate:
-    """
-    Save a parsed Pydantic Resume object into PostgreSQL.
-
-    Flow:
-        Pydantic Resume
-            ↓
-        SQLAlchemy Candidate
-            ↓
-        session.add()
-            ↓
-        session.commit()
-            ↓
-        PostgreSQL
-    """
 
     session = SessionLocal()
 
     try:
 
-        # Convert Pydantic Resume → SQLAlchemy Candidate
+        # ----------------------------------------------------
+        # STEP 1 — Build text for semantic search
+        # ----------------------------------------------------
+
+        searchable_text = f"""
+Candidate: {resume.name}
+Experience Years: {resume.experience_years}
+Skills: {", ".join(resume.skills)}
+"""
+
+        # ----------------------------------------------------
+        # STEP 2 — Convert text → 768-dim embedding
+        # ----------------------------------------------------
+
+        embedding = create_embedding(searchable_text)
+
+        # ----------------------------------------------------
+        # STEP 3 — Convert Pydantic Resume → SQLAlchemy Candidate
+        # ----------------------------------------------------
+
         candidate = Candidate(
             name=resume.name,
             experience_years=resume.experience_years,
             skills=resume.skills,
             resume_text=resume_text,
+            embedding=embedding,
         )
 
-        # Tell SQLAlchemy we want to insert this object
+        # ----------------------------------------------------
+        # STEP 4 — Save candidate
+        # ----------------------------------------------------
+
         session.add(candidate)
 
-        # Permanently save to PostgreSQL
         session.commit()
 
-        # Reload DB-generated values such as candidate.id
         session.refresh(candidate)
 
         print()
         print("Candidate saved to PostgreSQL.")
         print(f"Candidate ID: {candidate.id}")
+        print(f"Embedding dimensions: {len(embedding)}")
 
         return candidate
 
     except Exception as e:
 
-        # Undo the current transaction if something failed
         session.rollback()
 
         print()
@@ -62,5 +70,4 @@ def save_resume_to_db(
 
     finally:
 
-        # Always release the DB session
         session.close()
