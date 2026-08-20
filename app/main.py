@@ -1,37 +1,31 @@
-from models.resume import Resume
-from models.job import JobDescription
-from models.match import MatchResult
+from fastapi import FastAPI
+
+from app.models.candidate_profile import CandidateProfile
+from app.agents.benchmark_graph import benchmark_graph
 
 
-resume = Resume(
-    name="Test Candidate",
-    skills=["Python", "Docker"],
-    experience_years=5,
-    education=["B.Tech"],
-    projects=["AI chatbot"],
-    companies=["ABC Ltd"]
+app = FastAPI(
+    title="Manalot RecruitAI",
+    version="1.0.0",
 )
 
 
-job = JobDescription(
-    title="Senior Manager AI",
-    required_skills=["Python", "Leadership"],
-    preferred_skills=["Docker"],
-    experience_required=7,
-    domain="Technology",
-    responsibilities=["Lead AI team"]
-)
+@app.get("/")
+def root():
+    return {
+        "message": "Manalot RecruitAI API is running"
+    }
 
 
-result = MatchResult(
-    score=75,
-    matched_skills=["Python"],
-    missing_skills=["Leadership"],
-    experience_gap=2,
-    explanation="Strong technical match but lacks leadership experience"
-)
+@app.post("/candidates/evaluate")
+def evaluate_candidate(
+    candidate: CandidateProfile
+):
 
+    result = benchmark_graph.invoke(
+        {
+            "candidate_profile": candidate
+        }
+    )
 
-print(resume)
-print(job)
-print(result)
+    return result

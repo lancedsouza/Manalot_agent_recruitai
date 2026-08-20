@@ -5,3 +5,10 @@ langchain
 pdfplumber
 path
 instructor
+streamlit
+google-genai
+python-dotenv
+pdfplumber
+pydantic
+langgraph
+fastapi
