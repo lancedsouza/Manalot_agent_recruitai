@@ -1,7 +1,26 @@
+import sys
 import tempfile
 from pathlib import Path
 
 import streamlit as st
+
+
+# ============================================================
+# FIX IMPORT PATH FOR STREAMLIT CLOUD
+# ============================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT),
+    )
+
+
+# ============================================================
+# PROJECT IMPORTS
+# ============================================================
 
 from app.services.resume_extractor import extract_resume_data
 from app.models.candidate_profile import CandidateProfile
@@ -27,52 +46,53 @@ st.title("Manalot RecruitAI")
 
 st.write(
     """
-Upload a resume, enter the candidate's role and business scope,
-and evaluate the candidate against an appropriate professional benchmark.
+Upload a candidate resume, provide the candidate's professional
+scope, and evaluate the candidate against an appropriate benchmark.
 """
 )
 
 
 # ============================================================
-# RESUME
+# RESUME UPLOAD
 # ============================================================
 
 st.header("1. Resume")
 
 uploaded_file = st.file_uploader(
-    "Upload candidate resume",
+    "Upload Candidate Resume",
     type=["pdf"],
 )
 
 
 # ============================================================
-# UI CANDIDATE DETAILS
+# UI DETAILS
 # ============================================================
 
 st.header("2. Candidate Details")
 
 col1, col2 = st.columns(2)
 
+
 with col1:
 
     designation = st.text_input(
         "Designation",
-        placeholder="Director"
+        placeholder="Director",
     )
 
     function = st.text_input(
         "Function",
-        placeholder="FP&A"
+        placeholder="FP&A",
     )
 
     industry = st.text_input(
         "Industry",
-        placeholder="Technology"
+        placeholder="Technology",
     )
 
     geography = st.text_input(
         "Geography",
-        placeholder="India"
+        placeholder="India",
     )
 
 
@@ -94,18 +114,18 @@ with col2:
 
     markets = st.text_input(
         "Markets Handled",
-        placeholder="North America, MEA, UKI"
+        placeholder="North America, MEA, UKI",
     )
 
     portfolio_handled = st.text_input(
         "Portfolio / Revenue Handled",
-        placeholder="$400M"
+        placeholder="$400M",
     )
 
 
 budget_handled = st.text_input(
     "Budget Handled",
-    placeholder="$100M budget"
+    placeholder="$100M budget",
 )
 
 
@@ -113,8 +133,9 @@ business_impact = st.text_area(
     "Business Impact",
     placeholder=(
         "Example: Reduced manual reporting by 90%, "
-        "improved forecast accuracy by 15%..."
-    )
+        "improved forecast accuracy by 15%, "
+        "reduced costs by $5M..."
+    ),
 )
 
 
@@ -122,70 +143,62 @@ transformation_scope = st.text_area(
     "Transformation / Strategic Scope",
     placeholder=(
         "Example: Led finance automation using Python, "
-        "RPA and data platforms..."
-    )
+        "RPA, Power BI and data platforms..."
+    ),
 )
 
 
 # ============================================================
-# EVALUATE
+# EVALUATION BUTTON
 # ============================================================
 
-st.header("3. Evaluation")
+st.header("3. Candidate Evaluation")
 
-
-if st.button(
+evaluate_button = st.button(
     "Evaluate Candidate",
     type="primary",
     use_container_width=True,
-):
+)
+
+
+# ============================================================
+# PROCESS
+# ============================================================
+
+if evaluate_button:
 
     # --------------------------------------------------------
     # VALIDATION
     # --------------------------------------------------------
 
     if uploaded_file is None:
-
         st.error(
-            "Please upload a resume."
+            "Please upload the candidate resume."
         )
-
         st.stop()
 
-
     if not designation.strip():
-
         st.error(
             "Please enter the candidate designation."
         )
-
         st.stop()
 
-
     if not function.strip():
-
         st.error(
             "Please enter the candidate function."
         )
-
         st.stop()
 
-
     if not industry.strip():
-
         st.error(
             "Please enter the candidate industry."
         )
-
         st.stop()
 
-
     if not geography.strip():
-
         st.error(
             "Please enter the candidate geography."
         )
-
         st.stop()
 
 
@@ -195,7 +208,7 @@ if st.button(
     try:
 
         # ====================================================
-        # STEP 1 — TEMPORARILY SAVE PDF
+        # STEP 1 — SAVE PDF TEMPORARILY
         # ====================================================
 
         with tempfile.NamedTemporaryFile(
@@ -213,11 +226,11 @@ if st.button(
 
 
         # ====================================================
-        # STEP 2 — RESUME EXTRACTION
+        # STEP 2 — EXTRACT RESUME
         # ====================================================
 
         with st.spinner(
-            "Extracting resume experience, skills and education..."
+            "Extracting experience, skills and education..."
         ):
 
             resume = extract_resume_data(
@@ -226,77 +239,126 @@ if st.button(
 
 
         # ====================================================
-        # STEP 3 — BUILD CANDIDATE PROFILE
+        # STEP 3 — BUILD SUMMARIES
+        # ====================================================
+
+        experience_lines = []
+
+        for experience in resume.experience:
+
+            line = (
+                f"{experience.title} at "
+                f"{experience.company} "
+                f"({experience.start_date} - "
+                f"{experience.end_date})"
+            )
+
+            experience_lines.append(
+                line
+            )
+
+        experience_summary = "\n".join(
+            experience_lines
+        )
+
+
+        education_lines = []
+
+        for education in resume.education:
+
+            line = (
+                f"{education.degree} at "
+                f"{education.institution}"
+            )
+
+            if education.start_date or education.end_date:
+
+                line += (
+                    f" ({education.start_date} - "
+                    f"{education.end_date})"
+                )
+
+            education_lines.append(
+                line
+            )
+
+        education_summary = "\n".join(
+            education_lines
+        )
+
+
+        # ====================================================
+        # STEP 4 — BUILD CANDIDATE PROFILE
         # ====================================================
 
         candidate_profile = CandidateProfile(
 
-            # ----------------------------------------------
-            # UI
-            # ----------------------------------------------
+            # ------------------------------------------------
+            # RESUME
+            # ------------------------------------------------
 
             name=resume.name,
-
-            designation=designation,
-
-            function=function,
-
-            industry=industry,
 
             experience_years=(
                 resume.experience_years
             ),
 
-            geography=geography,
+            skills=resume.skills,
+
+            experience_summary=(
+                experience_summary
+            ),
+
+            education_summary=(
+                education_summary
+            ),
+
+            # ------------------------------------------------
+            # UI
+            # ------------------------------------------------
+
+            designation=designation.strip(),
+
+            function=function.strip(),
+
+            industry=industry.strip(),
+
+            geography=geography.strip(),
 
             team_size=(
-                team_size
+                int(team_size)
                 if team_size > 0
                 else None
             ),
 
             largest_team_size=(
-                largest_team_size
+                int(largest_team_size)
                 if largest_team_size > 0
                 else None
             ),
 
-            markets=markets,
+            markets=markets.strip(),
 
             portfolio_handled=(
-                portfolio_handled
+                portfolio_handled.strip()
             ),
 
             budget_handled=(
-                budget_handled
+                budget_handled.strip()
             ),
 
             business_impact=(
-                business_impact
+                business_impact.strip()
             ),
 
             transformation_scope=(
-                transformation_scope
-            ),
-
-            # ----------------------------------------------
-            # RESUME
-            # ----------------------------------------------
-
-            skills=resume.skills,
-
-            experience_summary=str(
-                resume.experience
-            ),
-
-            education_summary=str(
-                resume.education
+                transformation_scope.strip()
             ),
         )
 
 
         # ====================================================
-        # STEP 4 — LANGGRAPH
+        # STEP 5 — RUN LANGGRAPH
         # ====================================================
 
         with st.spinner(
@@ -312,7 +374,7 @@ if st.button(
 
 
         # ====================================================
-        # STEP 5 — DISPLAY RESULTS
+        # SUCCESS
         # ====================================================
 
         st.success(
@@ -320,15 +382,18 @@ if st.button(
         )
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # SUMMARY
-        # ----------------------------------------------------
+        # ====================================================
+
+        st.divider()
 
         st.header(
             "Candidate Summary"
         )
 
         col1, col2, col3 = st.columns(3)
+
 
         with col1:
 
@@ -342,7 +407,10 @@ if st.button(
 
             st.metric(
                 "Experience",
-                f"{candidate_profile.experience_years:.1f} years",
+                (
+                    f"{candidate_profile.experience_years:.1f} "
+                    f"years"
+                ),
             )
 
 
@@ -354,12 +422,13 @@ if st.button(
             )
 
 
-        # ----------------------------------------------------
-        # RESUME DATA
-        # ----------------------------------------------------
+        # ====================================================
+        # RESUME EXTRACTION
+        # ====================================================
 
         with st.expander(
-            "Resume Extraction"
+            "Resume Extraction",
+            expanded=False,
         ):
 
             st.subheader(
@@ -368,33 +437,48 @@ if st.button(
 
             if resume.skills:
 
-                st.write(
-                    ", ".join(
-                        resume.skills
+                for skill in resume.skills:
+
+                    st.write(
+                        f"• {skill}"
                     )
-                )
 
             else:
 
-                st.write(
+                st.info(
                     "No skills extracted."
                 )
 
 
             st.subheader(
-                "Experience"
+                "Professional Experience"
             )
 
-            for experience in resume.experience:
+            if resume.experience:
 
-                st.write(
-                    f"**{experience.title}** "
-                    f"— {experience.company}"
-                )
+                for experience in resume.experience:
 
-                st.write(
-                    f"{experience.start_date} "
-                    f"to {experience.end_date}"
+                    st.markdown(
+                        f"**{experience.title}**"
+                    )
+
+                    st.write(
+                        f"Company: {experience.company}"
+                    )
+
+                    st.write(
+                        f"Period: "
+                        f"{experience.start_date} "
+                        f"to "
+                        f"{experience.end_date}"
+                    )
+
+                    st.write("---")
+
+            else:
+
+                st.info(
+                    "No experience extracted."
                 )
 
 
@@ -402,29 +486,66 @@ if st.button(
                 "Education"
             )
 
-            for education in resume.education:
+            if resume.education:
 
-                st.write(
-                    f"**{education.degree}** "
-                    f"— {education.institution}"
+                for education in resume.education:
+
+                    st.markdown(
+                        f"**{education.degree}**"
+                    )
+
+                    st.write(
+                        f"Institution: "
+                        f"{education.institution}"
+                    )
+
+                    if (
+                        education.start_date
+                        or education.end_date
+                    ):
+
+                        st.write(
+                            f"Period: "
+                            f"{education.start_date} "
+                            f"to "
+                            f"{education.end_date}"
+                        )
+
+                    st.write("---")
+
+            else:
+
+                st.info(
+                    "No education extracted."
                 )
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # BENCHMARK
-        # ----------------------------------------------------
+        # ====================================================
+
+        st.divider()
 
         st.header(
-            "Benchmark"
+            "Benchmark Used"
         )
+
+        st.write(
+            f"**Function:** "
+            f"{result['benchmark'].function}"
+        )
+
 
         for dimension in (
             result["benchmark"].dimensions
         ):
 
+            st.markdown(
+                f"### {dimension.name}"
+            )
+
             st.write(
-                f"**{dimension.name}** "
-                f"— Weight: "
+                f"Weight: "
                 f"{dimension.weight:.0%}"
             )
 
@@ -433,13 +554,16 @@ if st.button(
             )
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # DIMENSION SCORES
-        # ----------------------------------------------------
+        # ====================================================
+
+        st.divider()
 
         st.header(
             "Dimension Scores"
         )
+
 
         for item in (
             result["evaluation"]
@@ -447,8 +571,18 @@ if st.button(
         ):
 
             st.subheader(
-                f"{item.dimension}: "
+                f"{item.dimension} — "
                 f"{item.score:.1f}/10"
+            )
+
+            st.progress(
+                min(
+                    max(
+                        item.score / 10,
+                        0.0,
+                    ),
+                    1.0,
+                )
             )
 
             st.write(
@@ -458,20 +592,22 @@ if st.button(
 
             if item.evidence:
 
-                st.write(
-                    "**Evidence:**"
+                st.markdown(
+                    "**Evidence**"
                 )
 
                 for evidence in item.evidence:
 
                     st.write(
-                        f"- {evidence}"
+                        f"• {evidence}"
                     )
 
 
-        # ----------------------------------------------------
-        # STRENGTHS / WEAKNESSES
-        # ----------------------------------------------------
+        # ====================================================
+        # STRENGTHS + WEAKNESSES
+        # ====================================================
+
+        st.divider()
 
         left, right = st.columns(2)
 
@@ -482,50 +618,82 @@ if st.button(
                 "Strengths"
             )
 
-            for item in (
-                result["evaluation"].strengths
-            ):
+            if result["evaluation"].strengths:
 
-                st.write(
-                    f"- {item}"
+                for strength in (
+                    result["evaluation"]
+                    .strengths
+                ):
+
+                    st.write(
+                        f"• {strength}"
+                    )
+
+            else:
+
+                st.info(
+                    "No specific strengths identified."
                 )
 
 
         with right:
 
             st.header(
-                "Weaknesses"
+                "Weaknesses / Gaps"
             )
 
-            for item in (
-                result["evaluation"].weaknesses
-            ):
+            if result["evaluation"].weaknesses:
 
-                st.write(
-                    f"- {item}"
+                for weakness in (
+                    result["evaluation"]
+                    .weaknesses
+                ):
+
+                    st.write(
+                        f"• {weakness}"
+                    )
+
+            else:
+
+                st.info(
+                    "No major weaknesses identified."
                 )
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # IMPROVEMENTS
-        # ----------------------------------------------------
+        # ====================================================
+
+        st.divider()
 
         st.header(
             "Recommended Improvements"
         )
 
-        for item in (
-            result["evaluation"].improvements
-        ):
 
-            st.write(
-                f"- {item}"
+        if result["evaluation"].improvements:
+
+            for improvement in (
+                result["evaluation"]
+                .improvements
+            ):
+
+                st.write(
+                    f"• {improvement}"
+                )
+
+        else:
+
+            st.info(
+                "No specific improvements returned."
             )
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # OVERALL ANALYSIS
-        # ----------------------------------------------------
+        # ====================================================
+
+        st.divider()
 
         st.header(
             "Overall Analysis"
@@ -537,12 +705,13 @@ if st.button(
         )
 
 
-        # ----------------------------------------------------
-        # DEBUG
-        # ----------------------------------------------------
+        # ====================================================
+        # RAW DATA
+        # ====================================================
 
         with st.expander(
-            "View Raw Result"
+            "Developer View — Raw Result",
+            expanded=False,
         ):
 
             st.json(
