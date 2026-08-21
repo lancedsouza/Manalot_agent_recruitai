@@ -194,81 +194,210 @@
 #     return resume
 
 """nvidia API"""
+import json
 import os
 from pathlib import Path
 
-import pdfplumber
 from dotenv import load_dotenv
-from openai import OpenAI
 
 from app.models.resume import Resume
 
-from app.utils.section_extractor import (
-    extract_experience_section,
-    extract_education_section,
-    extract_name_section,
-)
-
-
-# ============================================================
-# CONFIGURATION
-# ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENV_PATH = PROJECT_ROOT / ".env"
 
 load_dotenv(ENV_PATH)
 
-api_key = os.getenv("NVIDIA_API_KEY")
 
-if not api_key:
-    raise ValueError(
-        f"NVIDIA_API_KEY not found in {ENV_PATH}"
+# ============================================================
+# NORMALIZE PROVIDER OUTPUT
+# ============================================================
+
+def normalize_resume_payload(
+    payload: dict,
+) -> dict:
+
+    # --------------------------------------------------------
+    # EXPERIENCE
+    # --------------------------------------------------------
+
+    experience = payload.get(
+        "experience"
     )
 
-# Initialize NVIDIA NIM client with OpenAI-compatible interface
-client = OpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key=api_key,
-)
+    if isinstance(
+        experience,
+        dict,
+    ):
 
-# Using a high-quality NVIDIA model
-MODEL_NAME = "nvidia/nemotron-3.5-lightning-30b-a3b"  # or "meta/llama-3.1-70b-instruct" etc.
+        # NVIDIA may return:
+        #
+        # "experience": {
+        #     "total_experience": "...",
+        #     "records": [...]
+        # }
 
-
-# ============================================================
-# PDF TEXT EXTRACTION
-# ============================================================
-
-def extract_text(
-    pdf_path: Path,
-) -> str:
-
-    if not pdf_path.exists():
-        raise FileNotFoundError(
-            f"PDF not found: {pdf_path}"
+        records = experience.get(
+            "records",
+            []
         )
 
-    extracted_text = []
+        payload["experience"] = records
 
-    with pdfplumber.open(pdf_path) as pdf:
+        # If provider supplied total experience inside
+        # experience, use it only if top-level
+        # experience_years is missing.
+        if (
+            not payload.get("experience_years")
+            and experience.get("total_experience")
+        ):
 
-        for page in pdf.pages:
-
-            page_text = page.extract_text()
-
-            if page_text:
-                extracted_text.append(
-                    page_text
+            total_experience = (
+                experience.get(
+                    "total_experience"
                 )
+            )
 
-    return "\n\n".join(
-        extracted_text
+            # Leave parsing to a helper below
+            payload["experience_years"] = (
+                parse_experience_years(
+                    total_experience
+                )
+            )
+
+
+    # --------------------------------------------------------
+    # EDUCATION
+    # --------------------------------------------------------
+
+    education = payload.get(
+        "education"
+    )
+
+    if isinstance(
+        education,
+        dict,
+    ):
+
+        # NVIDIA may return:
+        #
+        # "education": {
+        #     "records": [...]
+        # }
+
+        payload["education"] = (
+            education.get(
+                "records",
+                []
+            )
+        )
+
+
+    # --------------------------------------------------------
+    # SKILLS
+    # --------------------------------------------------------
+
+    skills = payload.get(
+        "skills"
+    )
+
+    if skills is None:
+        payload["skills"] = []
+
+    elif isinstance(
+        skills,
+        str,
+    ):
+
+        payload["skills"] = [
+            skill.strip()
+            for skill in skills.split(",")
+            if skill.strip()
+        ]
+
+
+    # --------------------------------------------------------
+    # GUARANTEE LIST FIELDS
+    # --------------------------------------------------------
+
+    if payload.get("experience") is None:
+        payload["experience"] = []
+
+    if payload.get("education") is None:
+        payload["education"] = []
+
+
+    return payload
+
+
+# ============================================================
+# EXPERIENCE YEAR PARSER
+# ============================================================
+
+def parse_experience_years(
+    value,
+) -> float:
+
+    if value is None:
+        return 0.0
+
+    if isinstance(
+        value,
+        (int, float),
+    ):
+        return float(value)
+
+    text = str(value).lower()
+
+    years = 0.0
+    months = 0.0
+
+    import re
+
+    year_match = re.search(
+        r"(\d+(?:\.\d+)?)\s*years?",
+        text,
+    )
+
+    month_match = re.search(
+        r"(\d+)\s*months?",
+        text,
+    )
+
+    if year_match:
+        years = float(
+            year_match.group(1)
+        )
+
+    if month_match:
+        months = float(
+            month_match.group(1)
+        )
+
+    if (
+        years == 0
+        and months == 0
+    ):
+
+        number_match = re.search(
+            r"\d+(?:\.\d+)?",
+            text,
+        )
+
+        if number_match:
+            return float(
+                number_match.group()
+            )
+
+        return 0.0
+
+    return years + (
+        months / 12
     )
 
 
 # ============================================================
-# NVIDIA NIM STRUCTURED EXTRACTION
+# NVIDIA RESUME EXTRACTION
 # ============================================================
 
 def parse_resume_to_pydantic(
@@ -280,120 +409,161 @@ def parse_resume_to_pydantic(
     prompt = f"""
 You are extracting structured information from a resume.
 
-CURRENT DATE:
-August 2026
-
 CANDIDATE NAME:
 {candidate_name}
 
-EXPERIENCE:
+EXPERIENCE SECTION:
 {experience_text}
 
-EDUCATION:
+EDUCATION SECTION:
 {education_text}
 
-Rules:
 
-- Use only information supported by the supplied resume text.
+Return ONLY valid JSON.
+
+The JSON MUST have exactly this top-level structure:
+
+{{
+    "name": "candidate name",
+    "experience_years": 0.0,
+    "skills": [],
+    "experience": [],
+    "education": []
+}}
+
+
+IMPORTANT OUTPUT RULES:
+
+1. "experience_years"
+   - Must be a number.
+   - Example:
+     14.5
+   - Do NOT return:
+     "14 years 6 months"
+
+2. "experience"
+   - Must be a JSON array.
+   - Every item represents one employment record.
+
+Example:
+
+"experience": [
+    {{
+        "company": "ABC Ltd",
+        "title": "Finance Manager",
+        "start_date": "Jan 2020",
+        "end_date": "Dec 2024"
+    }}
+]
+
+Do NOT return:
+
+"experience": {{
+    "records": [...]
+}}
+
+Do NOT put "total_experience" inside "experience".
+
+
+3. "education"
+   - Must be a JSON array.
+
+Example:
+
+"education": [
+    {{
+        "degree": "MBA",
+        "institution": "XYZ University",
+        "start_date": "1996",
+        "end_date": "1998"
+    }}
+]
+
+Do NOT return:
+
+"education": {{
+    "records": [...]
+}}
+
+
+4. "skills"
+   - Must be a JSON array of strings.
+
+Example:
+
+"skills": [
+    "FP&A",
+    "Forecasting",
+    "SAP",
+    "Power BI"
+]
+
+
+CONTENT RULES:
+
+- Use only information supported by the resume.
 - Use the supplied candidate name exactly.
 - Extract every professional employment record.
-- For each job extract company, title, start_date, end_date.
-- Normalize dates where possible.
-- Treat Current, Present, Till Date and To Date as August 2026.
-- Calculate total professional experience from the employment periods.
+- Extract company, title, start_date and end_date.
+- Do not invent dates.
+- Calculate total professional experience from employment periods.
 - Do not double-count overlapping employment.
 - Do not estimate experience from seniority or title.
-
-SKILLS:
-
-- Extract professional skills from EXPERIENCE only.
-- Include technologies, tools, software, platforms,
-  finance/accounting skills, business domains,
-  methodologies, analytical skills and clearly
-  demonstrated professional processes.
-- Do not include company names.
-- Do not include job titles.
-- Do not include degrees.
-- Do not invent unsupported skills.
-
-EDUCATION:
-
-- Extract education only from the supplied education text.
-- Extract every clearly identifiable education record.
-- Include degree, institution, start_date and end_date
-  when available.
-- Do not invent missing information.
-
-Return data matching the Resume schema.
-
-IMPORTANT: Return your response as a valid JSON object.
+- Extract professional skills from the EXPERIENCE section only.
+- Do not include company names, job titles or degrees as skills.
+- Extract education only from the EDUCATION section.
 """
 
-    # NVIDIA NIM API call using OpenAI-compatible interface
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": "You are an AI assistant that extracts structured information from resumes. Always respond with valid JSON."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0,
-        max_tokens=4096,  # Adjust based on model context window
-        response_format={"type": "json_object"}  # Request JSON output
-    )
+    # --------------------------------------------------------
+    # CALL NVIDIA HERE
+    # --------------------------------------------------------
+    #
+    # Replace this block with whatever NVIDIA SDK/client
+    # call you are already using.
+    #
+    # The important requirement is that response_text
+    # becomes the raw JSON string returned by NVIDIA.
+    # --------------------------------------------------------
 
-    # Extract the JSON response
-    response_text = response.choices[0].message.content
-
-    return Resume.model_validate_json(
-        response_text
+    response_text = call_nvidia_model(
+        prompt
     )
 
 
-# ============================================================
-# COMPLETE RESUME PIPELINE
-# ============================================================
+    # ========================================================
+    # JSON PARSE
+    # ========================================================
 
-def extract_resume_data(
-    pdf_path: Path,
-) -> Resume:
+    try:
 
-    # 1. PDF -> full text
-    full_text = extract_text(
-        pdf_path
-    )
+        payload = json.loads(
+            response_text
+        )
 
-    if not full_text.strip():
+    except json.JSONDecodeError as e:
+
         raise ValueError(
-            "No text could be extracted from the PDF."
-        )
+            "NVIDIA returned invalid JSON."
+        ) from e
 
-    # 2. Deterministic name extraction
-    name = extract_name_section(
-        full_text
+
+    # ========================================================
+    # NORMALIZE PROVIDER-SPECIFIC OUTPUT
+    # ========================================================
+
+    payload = normalize_resume_payload(
+        payload
     )
 
-    # 3. Experience section
-    experience_section = (
-        extract_experience_section(
-            full_text
-        )
+
+    # Deterministic name wins
+    payload["name"] = candidate_name
+
+
+    # ========================================================
+    # PYDANTIC VALIDATION
+    # ========================================================
+
+    return Resume.model_validate(
+        payload
     )
-
-    # 4. Education section
-    education_section = (
-        extract_education_section(
-            full_text
-        )
-    )
-
-    # 5. NVIDIA NIM -> Resume Pydantic model
-    resume = parse_resume_to_pydantic(
-        candidate_name=name,
-        experience_text=experience_section,
-        education_text=education_section,
-    )
-
-    # Deterministic extractor wins for name
-    resume.name = name
-
-    return resume
