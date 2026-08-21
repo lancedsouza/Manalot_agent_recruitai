@@ -10,6 +10,10 @@ from app.models.role_benchmark import RoleBenchmark
 from app.models.benchmark_score import BenchmarkEvaluation
 
 
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ENV_PATH = PROJECT_ROOT / ".env"
 
@@ -29,6 +33,50 @@ client = genai.Client(
 
 MODEL_NAME = "gemini-2.5-flash"
 
+
+# ============================================================
+# VALIDATION
+# ============================================================
+
+def validate_evaluation(
+    evaluation: BenchmarkEvaluation,
+    benchmark: RoleBenchmark,
+) -> None:
+
+    # Every benchmark dimension should have a score
+    if len(evaluation.dimension_scores) != len(
+        benchmark.dimensions
+    ):
+        raise ValueError(
+            "Evaluation does not contain a score "
+            "for every benchmark dimension."
+        )
+
+    # Strengths should not be empty
+    if len(evaluation.strengths) < 2:
+        raise ValueError(
+            "Evaluation must contain at least "
+            "2 evidence-based strengths."
+        )
+
+    # Weaknesses / evidence gaps should not be empty
+    if len(evaluation.weaknesses) < 2:
+        raise ValueError(
+            "Evaluation must contain at least "
+            "2 weaknesses or evidence gaps."
+        )
+
+    # Improvements should not be empty
+    if len(evaluation.improvements) < 2:
+        raise ValueError(
+            "Evaluation must contain at least "
+            "2 practical improvements."
+        )
+
+
+# ============================================================
+# CANDIDATE EVALUATOR
+# ============================================================
 
 def eval_candidate(
     candidate_profile: CandidateProfile,
@@ -58,16 +106,23 @@ For each dimension:
 3. List the evidence supporting the score.
 4. Explain briefly why the evidence justifies the score.
 5. Do not invent missing achievements or responsibilities.
-6. Missing information means "not evidenced", not necessarily poor ability.
+6. Missing information means "not evidenced", not necessarily
+   poor ability.
+
+
 IMPORTANT EVIDENCE RULES:
 
 - Designation and years of experience are context only.
-- Do NOT use designation alone as evidence of leadership,
-  strategic responsibility, stakeholder altitude, scope,
+
+- Do NOT use designation alone as evidence of:
+  leadership,
+  strategic responsibility,
+  stakeholder altitude,
+  scope,
   or business impact.
 
 - Do NOT assume that because someone is a Director,
-  VP, Manager, or other senior title that they necessarily
+  VP, Manager, or another senior title that they necessarily
   demonstrated the expected capability.
 
 - Prefer explicit evidence such as:
@@ -90,6 +145,79 @@ IMPORTANT EVIDENCE RULES:
 
 - Do not invent evidence.
 
+
+EVIDENCE INTERPRETATION RULES:
+
+- Do not treat evidence of scope as automatic evidence
+  of capability quality.
+
+- For example, managing a large team demonstrates
+  leadership scope, but does not automatically demonstrate
+  coaching quality, mentoring ability, talent development,
+  retention, or team performance.
+
+- Do not use an achievement from one capability as proof
+  of another capability unless the candidate profile
+  explicitly supports the relationship.
+
+- For example, revenue growth does not automatically prove
+  strong people leadership.
+
+- Do not invent causal relationships.
+
+- If the profile states that revenue increased by 20%,
+  do not claim that coaching, transformation, leadership,
+  or another activity caused that increase unless the
+  candidate profile explicitly establishes that relationship.
+
+
+SUMMARY REQUIREMENTS:
+
+STRENGTHS:
+
+- Return at least 2 specific strengths.
+- Every strength must be supported by explicit candidate evidence.
+- Do not use designation or years of experience alone as a strength.
+- Prefer demonstrated achievements, scale, outcomes,
+  responsibilities or capabilities.
+
+
+WEAKNESSES:
+
+- Return at least 2 weaknesses OR evidence gaps.
+- Missing evidence must be described as an evidence gap,
+  not automatically as candidate weakness.
+- Do not invent weaknesses.
+
+For example:
+
+Good:
+"Team development outcomes are not clearly evidenced."
+
+Bad:
+"The candidate is poor at team development."
+
+unless the candidate profile explicitly supports that conclusion.
+
+
+IMPROVEMENTS:
+
+- Return at least 2 practical improvements.
+- Improvements should address capability gaps,
+  evidence gaps, or areas where the candidate could
+  demonstrate stronger alignment with the benchmark.
+- Avoid generic advice.
+
+
+OVERALL ANALYSIS:
+
+- Summarize the candidate's overall alignment with the benchmark.
+- Clearly distinguish demonstrated strengths from areas
+  that are simply not evidenced.
+- Do not introduce evidence that was not used in the
+  dimension evaluations.
+
+
 IMPORTANT:
 
 - Do not add new benchmark dimensions.
@@ -97,8 +225,6 @@ IMPORTANT:
 - Use the benchmark dimensions exactly as supplied.
 - Consider designation, experience, industry and geography
   when interpreting the strength of the evidence.
-- Return an overall analysis, strengths, weaknesses and
-  practical improvements.
 """
 
     response = client.models.generate_content(
@@ -111,6 +237,13 @@ IMPORTANT:
         ),
     )
 
-    return BenchmarkEvaluation.model_validate_json(
+    evaluation = BenchmarkEvaluation.model_validate_json(
         response.text
     )
+
+    validate_evaluation(
+        evaluation,
+        function_benchmark,
+    )
+
+    return evaluation
