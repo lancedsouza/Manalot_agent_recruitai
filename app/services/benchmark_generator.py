@@ -88,6 +88,15 @@ Requirements:
 
 8. The benchmark should represent what a strong professional
    in this context should be evaluated on.
+9.For each benchmark dimension:
+
+- create 3 to 6 evaluation criteria
+- each criterion must represent a distinct aspect of the dimension
+- avoid duplicate or overlapping criteria
+- criteria should be specific enough that a candidate can be assessed against them
+- do not include candidate-specific achievements
+- criteria must reflect the role context:
+  function, designation, experience, industry, geography
 
 Return the benchmark using the required schema.
 """
