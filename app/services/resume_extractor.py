@@ -233,7 +233,7 @@ client = OpenAI(
 )
 
 # Using a high-quality NVIDIA model
-MODEL_NAME = "meta/llama-3.3-70b-instruct"  # or "meta/llama-3.1-70b-instruct" etc.
+MODEL_NAME = "nvidia/nemotron-3.5-lightning-30b-a3b"  # or "meta/llama-3.1-70b-instruct" etc.
 
 
 # ============================================================
