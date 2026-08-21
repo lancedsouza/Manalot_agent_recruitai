@@ -108,7 +108,12 @@ For each dimension:
 5. Do not invent missing achievements or responsibilities.
 6. Missing information means "not evidenced", not necessarily
    poor ability.
+7. Identify what actions or outcomes demonstrate the capability.
 
+8. Identify important missing information as evidence gaps.Do not treat missing evidence as proof of poor capability..
+9.Explain why the available evidence, demonstrated outcomes,
+and evidence gaps justify the specific score given,
+including why the evidence does not support a materially higher score.
 
 IMPORTANT EVIDENCE RULES:
 
