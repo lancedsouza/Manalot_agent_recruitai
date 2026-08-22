@@ -1,8 +1,27 @@
+import logging
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import streamlit as st
+
+
+# ============================================================
+# LOGGING
+# ============================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format=(
+        "%(asctime)s | "
+        "%(levelname)s | "
+        "%(name)s | "
+        "%(message)s"
+    ),
+)
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -167,6 +186,12 @@ evaluate_button = st.button(
 
 if evaluate_button:
 
+    total_start = time.perf_counter()
+
+    logger.info("=" * 60)
+    logger.info("UI evaluation flow started")
+    logger.info("=" * 60)
+
     # --------------------------------------------------------
     # VALIDATION
     # --------------------------------------------------------
@@ -204,12 +229,31 @@ if evaluate_button:
 
     temp_path = None
 
+    # --------------------------------------------------------
+    # Visible UI status container
+    # --------------------------------------------------------
+
+    status_box = st.status(
+        "Starting candidate evaluation...",
+        expanded=True,
+    )
+
 
     try:
 
         # ====================================================
-        # STEP 1 — SAVE PDF TEMPORARILY
+        # STEP 1 — SAVE PDF
         # ====================================================
+
+        step_start = time.perf_counter()
+
+        status_box.write(
+            "1. Saving uploaded PDF..."
+        )
+
+        logger.info(
+            "STEP 1: Saving uploaded PDF."
+        )
 
         with tempfile.NamedTemporaryFile(
             delete=False,
@@ -224,23 +268,93 @@ if evaluate_button:
                 temp_file.name
             )
 
+        elapsed = (
+            time.perf_counter()
+            - step_start
+        )
+
+        logger.info(
+            "STEP 1 complete in %.4f seconds.",
+            elapsed,
+        )
+
+        status_box.write(
+            f"✓ PDF saved in {elapsed:.2f}s"
+        )
+
 
         # ====================================================
-        # STEP 2 — EXTRACT RESUME
+        # STEP 2 — RESUME EXTRACTION
         # ====================================================
 
-        with st.spinner(
-            "Extracting experience, skills and education..."
-        ):
+        step_start = time.perf_counter()
+
+        status_box.write(
+            "2. Extracting resume information..."
+        )
+
+        logger.info(
+            "STEP 2: Starting resume extraction."
+        )
+
+        try:
 
             resume = extract_resume_data(
                 temp_path
             )
 
+        except Exception:
+
+            elapsed = (
+                time.perf_counter()
+                - step_start
+            )
+
+            logger.exception(
+                "STEP 2 FAILED after %.2f seconds.",
+                elapsed,
+            )
+
+            status_box.update(
+                label=(
+                    "Resume extraction failed"
+                ),
+                state="error",
+            )
+
+            raise
+
+
+        elapsed = (
+            time.perf_counter()
+            - step_start
+        )
+
+        logger.info(
+            "STEP 2 complete in %.2f seconds.",
+            elapsed,
+        )
+
+        status_box.write(
+            f"✓ Resume extraction completed "
+            f"in {elapsed:.2f}s"
+        )
+
 
         # ====================================================
         # STEP 3 — BUILD SUMMARIES
         # ====================================================
+
+        step_start = time.perf_counter()
+
+        status_box.write(
+            "3. Building candidate summaries..."
+        )
+
+        logger.info(
+            "STEP 3: Building experience "
+            "and education summaries."
+        )
 
         experience_lines = []
 
@@ -257,6 +371,7 @@ if evaluate_button:
                 line
             )
 
+
         experience_summary = "\n".join(
             experience_lines
         )
@@ -271,7 +386,10 @@ if evaluate_button:
                 f"{education.institution}"
             )
 
-            if education.start_date or education.end_date:
+            if (
+                education.start_date
+                or education.end_date
+            ):
 
                 line += (
                     f" ({education.start_date} - "
@@ -282,8 +400,25 @@ if evaluate_button:
                 line
             )
 
+
         education_summary = "\n".join(
             education_lines
+        )
+
+
+        elapsed = (
+            time.perf_counter()
+            - step_start
+        )
+
+        logger.info(
+            "STEP 3 complete in %.4f seconds.",
+            elapsed,
+        )
+
+        status_box.write(
+            f"✓ Candidate summaries built "
+            f"in {elapsed:.2f}s"
         )
 
 
@@ -291,11 +426,17 @@ if evaluate_button:
         # STEP 4 — BUILD CANDIDATE PROFILE
         # ====================================================
 
-        candidate_profile = CandidateProfile(
+        step_start = time.perf_counter()
 
-            # ------------------------------------------------
-            # RESUME
-            # ------------------------------------------------
+        status_box.write(
+            "4. Building candidate profile..."
+        )
+
+        logger.info(
+            "STEP 4: Building CandidateProfile."
+        )
+
+        candidate_profile = CandidateProfile(
 
             name=resume.name,
 
@@ -312,10 +453,6 @@ if evaluate_button:
             education_summary=(
                 education_summary
             ),
-
-            # ------------------------------------------------
-            # UI
-            # ------------------------------------------------
 
             designation=designation.strip(),
 
@@ -357,13 +494,45 @@ if evaluate_button:
         )
 
 
+        elapsed = (
+            time.perf_counter()
+            - step_start
+        )
+
+        logger.info(
+            "STEP 4 complete in %.4f seconds.",
+            elapsed,
+        )
+
+        logger.info(
+            "Candidate profile size: %d characters.",
+            len(
+                candidate_profile.model_dump_json()
+            ),
+        )
+
+        status_box.write(
+            f"✓ Candidate profile built "
+            f"in {elapsed:.2f}s"
+        )
+
+
         # ====================================================
-        # STEP 5 — RUN LANGGRAPH
+        # STEP 5 — BENCHMARK + EVALUATION
         # ====================================================
 
-        with st.spinner(
-            "Benchmarking candidate..."
-        ):
+        step_start = time.perf_counter()
+
+        status_box.write(
+            "5. Generating benchmark and "
+            "evaluating candidate..."
+        )
+
+        logger.info(
+            "STEP 5: Starting LangGraph."
+        )
+
+        try:
 
             result = benchmark_graph.invoke(
                 {
@@ -371,6 +540,73 @@ if evaluate_button:
                     candidate_profile
                 }
             )
+
+        except Exception:
+
+            elapsed = (
+                time.perf_counter()
+                - step_start
+            )
+
+            logger.exception(
+                "STEP 5 FAILED after %.2f seconds.",
+                elapsed,
+            )
+
+            status_box.update(
+                label=(
+                    "Benchmark or candidate "
+                    "evaluation failed"
+                ),
+                state="error",
+            )
+
+            raise
+
+
+        elapsed = (
+            time.perf_counter()
+            - step_start
+        )
+
+        logger.info(
+            "STEP 5 complete in %.2f seconds.",
+            elapsed,
+        )
+
+        status_box.write(
+            f"✓ Benchmark/evaluation completed "
+            f"in {elapsed:.2f}s"
+        )
+
+
+        # ====================================================
+        # COMPLETE
+        # ====================================================
+
+        total_elapsed = (
+            time.perf_counter()
+            - total_start
+        )
+
+        logger.info("=" * 60)
+
+        logger.info(
+            "TOTAL UI FLOW completed in %.2f seconds.",
+            total_elapsed,
+        )
+
+        logger.info("=" * 60)
+
+
+        status_box.update(
+            label=(
+                f"Candidate evaluation completed "
+                f"in {total_elapsed:.1f}s"
+            ),
+            state="complete",
+            expanded=False,
+        )
 
 
         # ====================================================
@@ -737,7 +973,22 @@ if evaluate_button:
             )
 
 
+    # ========================================================
+    # ERROR HANDLING
+    # ========================================================
+
     except Exception as e:
+
+        total_elapsed = (
+            time.perf_counter()
+            - total_start
+        )
+
+        logger.exception(
+            "UI candidate evaluation FAILED "
+            "after %.2f seconds.",
+            total_elapsed,
+        )
 
         st.error(
             "Candidate evaluation failed."
@@ -748,6 +999,10 @@ if evaluate_button:
         )
 
 
+    # ========================================================
+    # CLEANUP
+    # ========================================================
+
     finally:
 
         if (
@@ -755,4 +1010,16 @@ if evaluate_button:
             and temp_path.exists()
         ):
 
-            temp_path.unlink()
+            try:
+
+                temp_path.unlink()
+
+                logger.info(
+                    "Temporary PDF deleted."
+                )
+
+            except Exception:
+
+                logger.exception(
+                    "Could not delete temporary PDF."
+                )
