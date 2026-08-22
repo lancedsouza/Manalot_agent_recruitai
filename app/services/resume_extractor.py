@@ -1,197 +1,197 @@
-import os
-from pathlib import Path
+# import os
+# from pathlib import Path
 
-import pdfplumber
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+# import pdfplumber
+# from dotenv import load_dotenv
+# from google import genai
+# from google.genai import types
 
-from app.models.resume import Resume
+# from app.models.resume import Resume
 
-from app.utils.section_extractor import (
-    extract_experience_section,
-    extract_education_section,
-    extract_name_section,
-)
-
-
-# ============================================================
-# CONFIGURATION
-# ============================================================
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ENV_PATH = PROJECT_ROOT / ".env"
-
-load_dotenv(ENV_PATH)
-
-api_key = os.getenv("GEMINI_API_KEY")
-
-if not api_key:
-    raise ValueError(
-        f"GEMINI_API_KEY not found in {ENV_PATH}"
-    )
-
-client = genai.Client(
-    api_key=api_key
-)
-
-MODEL_NAME = "gemini-2.5-flash"
+# from app.utils.section_extractor import (
+#     extract_experience_section,
+#     extract_education_section,
+#     extract_name_section,
+# )
 
 
-# ============================================================
-# PDF TEXT EXTRACTION
-# ============================================================
+# # ============================================================
+# # CONFIGURATION
+# # ============================================================
 
-def extract_text(
-    pdf_path: Path,
-) -> str:
+# PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# ENV_PATH = PROJECT_ROOT / ".env"
 
-    if not pdf_path.exists():
-        raise FileNotFoundError(
-            f"PDF not found: {pdf_path}"
-        )
+# load_dotenv(ENV_PATH)
 
-    extracted_text = []
+# api_key = os.getenv("GEMINI_API_KEY")
 
-    with pdfplumber.open(pdf_path) as pdf:
+# if not api_key:
+#     raise ValueError(
+#         f"GEMINI_API_KEY not found in {ENV_PATH}"
+#     )
 
-        for page in pdf.pages:
+# client = genai.Client(
+#     api_key=api_key
+# )
 
-            page_text = page.extract_text()
-
-            if page_text:
-                extracted_text.append(
-                    page_text
-                )
-
-    return "\n\n".join(
-        extracted_text
-    )
+# MODEL_NAME = "gemini-2.5-flash"
 
 
-# ============================================================
-# GEMINI STRUCTURED EXTRACTION
-# ============================================================
+# # ============================================================
+# # PDF TEXT EXTRACTION
+# # ============================================================
 
-def parse_resume_to_pydantic(
-    candidate_name: str,
-    experience_text: str,
-    education_text: str,
-) -> Resume:
+# def extract_text(
+#     pdf_path: Path,
+# ) -> str:
 
-    prompt = f"""
-You are extracting structured information from a resume.
+#     if not pdf_path.exists():
+#         raise FileNotFoundError(
+#             f"PDF not found: {pdf_path}"
+#         )
 
-CURRENT DATE:
-August 2026
+#     extracted_text = []
 
-CANDIDATE NAME:
-{candidate_name}
+#     with pdfplumber.open(pdf_path) as pdf:
 
-EXPERIENCE:
-{experience_text}
+#         for page in pdf.pages:
 
-EDUCATION:
-{education_text}
+#             page_text = page.extract_text()
 
-Rules:
+#             if page_text:
+#                 extracted_text.append(
+#                     page_text
+#                 )
 
-- Use only information supported by the supplied resume text.
-- Use the supplied candidate name exactly.
-- Extract every professional employment record.
-- For each job extract company, title, start_date, end_date.
-- Normalize dates where possible.
-- Treat Current, Present, Till Date and To Date as August 2026.
-- Calculate total professional experience from the employment periods.
-- Do not double-count overlapping employment.
-- Do not estimate experience from seniority or title.
-
-SKILLS:
-
-- Extract professional skills from EXPERIENCE only.
-- Include technologies, tools, software, platforms,
-  finance/accounting skills, business domains,
-  methodologies, analytical skills and clearly
-  demonstrated professional processes.
-- Do not include company names.
-- Do not include job titles.
-- Do not include degrees.
-- Do not invent unsupported skills.
-
-EDUCATION:
-
-- Extract education only from the supplied education text.
-- Extract every clearly identifiable education record.
-- Include degree, institution, start_date and end_date
-  when available.
-- Do not invent missing information.
-
-Return data matching the Resume schema.
-"""
-
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0,
-            response_mime_type="application/json",
-            response_schema=Resume,
-        ),
-    )
-
-    return Resume.model_validate_json(
-        response.text
-    )
+#     return "\n\n".join(
+#         extracted_text
+#     )
 
 
-# ============================================================
-# COMPLETE RESUME PIPELINE
-# ============================================================
+# # ============================================================
+# # GEMINI STRUCTURED EXTRACTION
+# # ============================================================
 
-def extract_resume_data(
-    pdf_path: Path,
-) -> Resume:
+# def parse_resume_to_pydantic(
+#     candidate_name: str,
+#     experience_text: str,
+#     education_text: str,
+# ) -> Resume:
 
-    # 1. PDF -> full text
-    full_text = extract_text(
-        pdf_path
-    )
+#     prompt = f"""
+# You are extracting structured information from a resume.
 
-    if not full_text.strip():
-        raise ValueError(
-            "No text could be extracted from the PDF."
-        )
+# CURRENT DATE:
+# August 2026
 
-    # 2. Deterministic name extraction
-    name = extract_name_section(
-        full_text
-    )
+# CANDIDATE NAME:
+# {candidate_name}
 
-    # 3. Experience section
-    experience_section = (
-        extract_experience_section(
-            full_text
-        )
-    )
+# EXPERIENCE:
+# {experience_text}
 
-    # 4. Education section
-    education_section = (
-        extract_education_section(
-            full_text
-        )
-    )
+# EDUCATION:
+# {education_text}
 
-    # 5. Gemini -> Resume Pydantic model
-    resume = parse_resume_to_pydantic(
-        candidate_name=name,
-        experience_text=experience_section,
-        education_text=education_section,
-    )
+# Rules:
 
-    # Deterministic extractor wins for name
-    resume.name = name
+# - Use only information supported by the supplied resume text.
+# - Use the supplied candidate name exactly.
+# - Extract every professional employment record.
+# - For each job extract company, title, start_date, end_date.
+# - Normalize dates where possible.
+# - Treat Current, Present, Till Date and To Date as August 2026.
+# - Calculate total professional experience from the employment periods.
+# - Do not double-count overlapping employment.
+# - Do not estimate experience from seniority or title.
 
-    return resume
+# SKILLS:
+
+# - Extract professional skills from EXPERIENCE only.
+# - Include technologies, tools, software, platforms,
+#   finance/accounting skills, business domains,
+#   methodologies, analytical skills and clearly
+#   demonstrated professional processes.
+# - Do not include company names.
+# - Do not include job titles.
+# - Do not include degrees.
+# - Do not invent unsupported skills.
+
+# EDUCATION:
+
+# - Extract education only from the supplied education text.
+# - Extract every clearly identifiable education record.
+# - Include degree, institution, start_date and end_date
+#   when available.
+# - Do not invent missing information.
+
+# Return data matching the Resume schema.
+# """
+
+#     response = client.models.generate_content(
+#         model=MODEL_NAME,
+#         contents=prompt,
+#         config=types.GenerateContentConfig(
+#             temperature=0,
+#             response_mime_type="application/json",
+#             response_schema=Resume,
+#         ),
+#     )
+
+#     return Resume.model_validate_json(
+#         response.text
+#     )
+
+
+# # ============================================================
+# # COMPLETE RESUME PIPELINE
+# # ============================================================
+
+# def extract_resume_data(
+#     pdf_path: Path,
+# ) -> Resume:
+
+#     # 1. PDF -> full text
+#     full_text = extract_text(
+#         pdf_path
+#     )
+
+#     if not full_text.strip():
+#         raise ValueError(
+#             "No text could be extracted from the PDF."
+#         )
+
+#     # 2. Deterministic name extraction
+#     name = extract_name_section(
+#         full_text
+#     )
+
+#     # 3. Experience section
+#     experience_section = (
+#         extract_experience_section(
+#             full_text
+#         )
+#     )
+
+#     # 4. Education section
+#     education_section = (
+#         extract_education_section(
+#             full_text
+#         )
+#     )
+
+#     # 5. Gemini -> Resume Pydantic model
+#     resume = parse_resume_to_pydantic(
+#         candidate_name=name,
+#         experience_text=experience_section,
+#         education_text=education_section,
+#     )
+
+#     # Deterministic extractor wins for name
+#     resume.name = name
+
+#     return resume
 
 """nvidia API"""
 # import json
@@ -834,6 +834,687 @@ def extract_resume_data(
 
 
 #     return resume
+
+"""resume extractor with logger"""
+
+# app/services/resume_extractor.py
+
+import logging
+import os
+import time
+from pathlib import Path
+
+import pdfplumber
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+from pydantic import ValidationError
+
+from app.models.resume import Resume
+from app.utils.section_extractor import (
+    extract_experience_section,
+    extract_education_section,
+    extract_name_section,
+)
+
+
+# ============================================================
+# LOGGING
+# ============================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format=(
+        "%(asctime)s | "
+        "%(levelname)s | "
+        "%(name)s | "
+        "%(message)s"
+    ),
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ENV_PATH = PROJECT_ROOT / ".env"
+
+load_dotenv(ENV_PATH)
+
+api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    raise ValueError(
+        f"GEMINI_API_KEY not found in {ENV_PATH}"
+    )
+
+client = genai.Client(
+    api_key=api_key
+)
+
+MODEL_NAME = "gemini-2.5-flash"
+
+
+# ============================================================
+# PDF TEXT EXTRACTION
+# ============================================================
+
+def extract_text(
+    pdf_path: Path,
+) -> str:
+
+    logger.info(
+        "Starting PDF text extraction: %s",
+        pdf_path.name,
+    )
+
+    start = time.perf_counter()
+
+    if not pdf_path.exists():
+
+        logger.error(
+            "PDF does not exist: %s",
+            pdf_path,
+        )
+
+        raise FileNotFoundError(
+            f"PDF not found: {pdf_path}"
+        )
+
+    extracted_text = []
+
+    try:
+
+        with pdfplumber.open(pdf_path) as pdf:
+
+            logger.info(
+                "PDF contains %d pages.",
+                len(pdf.pages),
+            )
+
+            for page_number, page in enumerate(
+                pdf.pages,
+                start=1,
+            ):
+
+                page_start = time.perf_counter()
+
+                page_text = page.extract_text()
+
+                page_elapsed = (
+                    time.perf_counter()
+                    - page_start
+                )
+
+                if page_text:
+
+                    extracted_text.append(
+                        page_text
+                    )
+
+                    logger.debug(
+                        "Page %d extracted in %.4fs. "
+                        "Characters: %d",
+                        page_number,
+                        page_elapsed,
+                        len(page_text),
+                    )
+
+                else:
+
+                    logger.warning(
+                        "No text extracted from page %d.",
+                        page_number,
+                    )
+
+    except Exception:
+
+        logger.exception(
+            "PDF extraction FAILED."
+        )
+
+        raise
+
+    full_text = "\n\n".join(
+        extracted_text
+    )
+
+    elapsed = (
+        time.perf_counter()
+        - start
+    )
+
+    logger.info(
+        "PDF extraction completed in %.2f seconds.",
+        elapsed,
+    )
+
+    logger.info(
+        "Full resume text size: %d characters.",
+        len(full_text),
+    )
+
+    return full_text
+
+
+# ============================================================
+# GEMINI STRUCTURED EXTRACTION
+# ============================================================
+
+def parse_resume_to_pydantic(
+    candidate_name: str,
+    experience_text: str,
+    education_text: str,
+) -> Resume:
+
+    total_start = time.perf_counter()
+
+    logger.info(
+        "Starting Gemini structured resume extraction."
+    )
+
+    # --------------------------------------------------------
+    # Build prompt
+    # --------------------------------------------------------
+
+    prompt_start = time.perf_counter()
+
+    prompt = f"""
+You are extracting structured information from a resume.
+
+CURRENT DATE:
+August 2026
+
+CANDIDATE NAME:
+{candidate_name}
+
+EXPERIENCE:
+{experience_text}
+
+EDUCATION:
+{education_text}
+
+Rules:
+
+- Use only information supported by the supplied resume text.
+- Use the supplied candidate name exactly.
+- Extract every professional employment record.
+- For each job extract company, title, start_date, end_date.
+- Normalize dates where possible.
+- Treat Current, Present, Till Date and To Date as August 2026.
+- Calculate total professional experience from the employment periods.
+- Do not double-count overlapping employment.
+- Do not estimate experience from seniority or title.
+
+SKILLS:
+
+- Extract professional skills from EXPERIENCE only.
+- Include technologies, tools, software, platforms,
+  finance/accounting skills, business domains,
+  methodologies, analytical skills and clearly
+  demonstrated professional processes.
+- Do not include company names.
+- Do not include job titles.
+- Do not include degrees.
+- Do not invent unsupported skills.
+
+EDUCATION:
+
+- Extract education only from the supplied education text.
+- Extract every clearly identifiable education record.
+- Include degree, institution, start_date and end_date
+  when available.
+- Do not invent missing information.
+
+Return data matching the Resume schema.
+"""
+
+    prompt_elapsed = (
+        time.perf_counter()
+        - prompt_start
+    )
+
+    logger.info(
+        "Resume prompt built in %.4f seconds.",
+        prompt_elapsed,
+    )
+
+    logger.info(
+        "Resume prompt size: %d characters.",
+        len(prompt),
+    )
+
+    logger.info(
+        "Experience section size: %d characters.",
+        len(experience_text),
+    )
+
+    logger.info(
+        "Education section size: %d characters.",
+        len(education_text),
+    )
+
+
+    # --------------------------------------------------------
+    # Gemini call
+    # --------------------------------------------------------
+
+    logger.info(
+        "Sending resume extraction request to Gemini..."
+    )
+
+    gemini_start = time.perf_counter()
+
+    try:
+
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0,
+                response_mime_type="application/json",
+                response_schema=Resume,
+            ),
+        )
+
+    except Exception:
+
+        gemini_elapsed = (
+            time.perf_counter()
+            - gemini_start
+        )
+
+        logger.exception(
+            "Gemini resume extraction FAILED "
+            "after %.2f seconds.",
+            gemini_elapsed,
+        )
+
+        raise
+
+    gemini_elapsed = (
+        time.perf_counter()
+        - gemini_start
+    )
+
+    logger.info(
+        "Gemini resume extraction returned "
+        "in %.2f seconds.",
+        gemini_elapsed,
+    )
+
+
+    # --------------------------------------------------------
+    # Inspect response
+    # --------------------------------------------------------
+
+    response_text = response.text
+
+    if response_text is None:
+
+        logger.error(
+            "Gemini returned response.text=None."
+        )
+
+        raise ValueError(
+            "Gemini returned no response text."
+        )
+
+    logger.info(
+        "Gemini resume response size: %d characters.",
+        len(response_text),
+    )
+
+    logger.debug(
+        "Gemini resume response preview: %r",
+        response_text[:300],
+    )
+
+
+    # --------------------------------------------------------
+    # Pydantic validation
+    # --------------------------------------------------------
+
+    logger.info(
+        "Starting Resume Pydantic validation..."
+    )
+
+    validation_start = (
+        time.perf_counter()
+    )
+
+    try:
+
+        resume = (
+            Resume.model_validate_json(
+                response_text
+            )
+        )
+
+    except ValidationError:
+
+        validation_elapsed = (
+            time.perf_counter()
+            - validation_start
+        )
+
+        logger.exception(
+            "Resume Pydantic validation FAILED "
+            "after %.4f seconds.",
+            validation_elapsed,
+        )
+
+        logger.error(
+            "Invalid Gemini resume response starts with: %r",
+            response_text[:500],
+        )
+
+        raise
+
+    validation_elapsed = (
+        time.perf_counter()
+        - validation_start
+    )
+
+    logger.info(
+        "Resume Pydantic validation completed "
+        "in %.4f seconds.",
+        validation_elapsed,
+    )
+
+    total_elapsed = (
+        time.perf_counter()
+        - total_start
+    )
+
+    logger.info(
+        "Structured resume extraction COMPLETE "
+        "in %.2f seconds.",
+        total_elapsed,
+    )
+
+    return resume
+
+
+# ============================================================
+# COMPLETE RESUME PIPELINE
+# ============================================================
+
+def extract_resume_data(
+    pdf_path: Path,
+) -> Resume:
+
+    total_start = time.perf_counter()
+
+    logger.info("=" * 60)
+
+    logger.info(
+        "Resume pipeline started for: %s",
+        pdf_path.name,
+    )
+
+    logger.info("=" * 60)
+
+    try:
+
+        # ====================================================
+        # STEP 1 — PDF -> TEXT
+        # ====================================================
+
+        full_text = extract_text(
+            pdf_path
+        )
+
+        if not full_text.strip():
+
+            logger.error(
+                "Resume contains no extractable text."
+            )
+
+            raise ValueError(
+                "No text could be extracted from the PDF."
+            )
+
+
+        # ====================================================
+        # STEP 2 — NAME
+        # ====================================================
+
+        logger.info(
+            "Starting candidate name extraction..."
+        )
+
+        start = time.perf_counter()
+
+        name = extract_name_section(
+            full_text
+        )
+
+        elapsed = (
+            time.perf_counter()
+            - start
+        )
+
+        logger.info(
+            "Name extraction completed "
+            "in %.4f seconds.",
+            elapsed,
+        )
+
+        logger.info(
+            "Candidate name detected: %s",
+            name,
+        )
+
+
+        # ====================================================
+        # STEP 3 — EXPERIENCE SECTION
+        # ====================================================
+
+        logger.info(
+            "Starting experience section extraction..."
+        )
+
+        start = time.perf_counter()
+
+        experience_section = (
+            extract_experience_section(
+                full_text
+            )
+        )
+
+        elapsed = (
+            time.perf_counter()
+            - start
+        )
+
+        logger.info(
+            "Experience section extraction completed "
+            "in %.4f seconds.",
+            elapsed,
+        )
+
+        logger.info(
+            "Experience section size: %d characters.",
+            len(experience_section),
+        )
+
+        if not experience_section.strip():
+
+            logger.warning(
+                "Experience section is empty."
+            )
+
+
+        # ====================================================
+        # STEP 4 — EDUCATION SECTION
+        # ====================================================
+
+        logger.info(
+            "Starting education section extraction..."
+        )
+
+        start = time.perf_counter()
+
+        education_section = (
+            extract_education_section(
+                full_text
+            )
+        )
+
+        elapsed = (
+            time.perf_counter()
+            - start
+        )
+
+        logger.info(
+            "Education section extraction completed "
+            "in %.4f seconds.",
+            elapsed,
+        )
+
+        logger.info(
+            "Education section size: %d characters.",
+            len(education_section),
+        )
+
+        if not education_section.strip():
+
+            logger.warning(
+                "Education section is empty."
+            )
+
+
+        # ====================================================
+        # CONTEXT METRICS
+        # ====================================================
+
+        full_chars = len(full_text)
+
+        relevant_chars = (
+            len(experience_section)
+            + len(education_section)
+        )
+
+        removed_chars = (
+            full_chars
+            - relevant_chars
+        )
+
+        if full_chars > 0:
+
+            reduction_percentage = (
+                removed_chars
+                / full_chars
+            ) * 100
+
+        else:
+
+            reduction_percentage = 0.0
+
+        logger.info(
+            "Full resume characters: %d",
+            full_chars,
+        )
+
+        logger.info(
+            "Relevant context characters: %d",
+            relevant_chars,
+        )
+
+        logger.info(
+            "Characters removed before LLM: %d",
+            removed_chars,
+        )
+
+        logger.info(
+            "Context reduction: %.1f%%",
+            reduction_percentage,
+        )
+
+
+        # ====================================================
+        # STEP 5 — GEMINI
+        # ====================================================
+
+        logger.info(
+            "Starting Gemini resume parsing..."
+        )
+
+        resume = parse_resume_to_pydantic(
+            candidate_name=name,
+            experience_text=experience_section,
+            education_text=education_section,
+        )
+
+
+        # ====================================================
+        # STEP 6 — DETERMINISTIC NAME OVERRIDE
+        # ====================================================
+
+        resume.name = name
+
+
+        # ====================================================
+        # COMPLETE
+        # ====================================================
+
+        total_elapsed = (
+            time.perf_counter()
+            - total_start
+        )
+
+        logger.info("=" * 60)
+
+        logger.info(
+            "RESUME PIPELINE COMPLETE "
+            "in %.2f seconds.",
+            total_elapsed,
+        )
+
+        logger.info("=" * 60)
+
+        return resume
+
+
+    except Exception:
+
+        total_elapsed = (
+            time.perf_counter()
+            - total_start
+        )
+
+        logger.exception(
+            "RESUME PIPELINE FAILED "
+            "after %.2f seconds.",
+            total_elapsed,
+        )
+
+        raise
+
+
+# ============================================================
+# OPTIONAL LOCAL TEST
+# ============================================================
+
+if __name__ == "__main__":
+
+    pdf_path = Path(
+        "/mnt/c/Users/User/Manlot/Annil Raikundlia - Lance/Medline/Sr.Mgr FP&A/Sent/Manalot_Anup_Dubey.pdf"
+    )
+
+    resume = extract_resume_data(
+        pdf_path
+    )
+
+    print(
+        resume.model_dump_json(
+            indent=2
+        )
+    )
 
 if __name__ == "__main__":
     from pathlib import Path
