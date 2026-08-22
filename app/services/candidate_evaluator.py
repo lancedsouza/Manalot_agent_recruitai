@@ -241,6 +241,9 @@ IMPORTANT:
             response_schema=BenchmarkEvaluation,
         ),
     )
+    print("\n===== RAW GEMINI RESPONSE =====")
+    print(repr(response.text))
+    print("================================\n")
 
     evaluation = BenchmarkEvaluation.model_validate_json(
         response.text
@@ -252,6 +255,7 @@ IMPORTANT:
     )
 
     return evaluation
+
 
 """using nvidia API"""
 # import os
