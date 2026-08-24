@@ -523,64 +523,566 @@
 
 #     return evaluation
 """with logger and gemini api"""
-import logging
-import os
-import time
-from pathlib import Path
+# import logging
+# import os
+# import time
+# from pathlib import Path
 
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+# from dotenv import load_dotenv
+# from google import genai
+# from google.genai import types
+# from pydantic import ValidationError
+
+# from app.models.candidate_profile import CandidateProfile
+# from app.models.role_benchmark import RoleBenchmark
+# from app.models.benchmark_score import BenchmarkEvaluation
+
+
+# # ============================================================
+# # LOGGING
+# # ============================================================
+
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format=(
+#         "%(asctime)s | "
+#         "%(levelname)s | "
+#         "%(name)s | "
+#         "%(message)s"
+#     ),
+# )
+
+# logger = logging.getLogger(__name__)
+
+
+# # ============================================================
+# # CONFIGURATION
+# # ============================================================
+
+# PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# ENV_PATH = PROJECT_ROOT / ".env"
+
+# load_dotenv(ENV_PATH)
+
+# api_key = os.getenv("GEMINI_API_KEY")
+
+# if not api_key:
+#     raise ValueError(
+#         f"GEMINI_API_KEY not found in {ENV_PATH}"
+#     )
+
+
+# client = genai.Client(
+#     api_key=api_key
+# )
+
+# MODEL_NAME = "gemini-2.5-flash"
+
+
+# # ============================================================
+# # VALIDATION
+# # ============================================================
+
+# def validate_evaluation(
+#     evaluation: BenchmarkEvaluation,
+#     benchmark: RoleBenchmark,
+# ) -> None:
+
+#     logger.info(
+#         "Starting business-rule validation."
+#     )
+
+#     start = time.perf_counter()
+
+#     # Every benchmark dimension should have a score
+#     if len(evaluation.dimension_scores) != len(
+#         benchmark.dimensions
+#     ):
+#         raise ValueError(
+#             "Evaluation does not contain a score "
+#             "for every benchmark dimension."
+#         )
+
+#     # Strengths
+#     if len(evaluation.strengths) < 2:
+#         raise ValueError(
+#             "Evaluation must contain at least "
+#             "2 evidence-based strengths."
+#         )
+
+#     # Weaknesses
+#     if len(evaluation.weaknesses) < 2:
+#         raise ValueError(
+#             "Evaluation must contain at least "
+#             "2 weaknesses or evidence gaps."
+#         )
+
+#     # Improvements
+#     if len(evaluation.improvements) < 2:
+#         raise ValueError(
+#             "Evaluation must contain at least "
+#             "2 practical improvements."
+#         )
+
+#     elapsed = time.perf_counter() - start
+
+#     logger.info(
+#         "Business validation completed in %.4f seconds.",
+#         elapsed,
+#     )
+
+
+# # ============================================================
+# # CANDIDATE EVALUATOR
+# # ============================================================
+
+# def eval_candidate(
+#     candidate_profile: CandidateProfile,
+#     function_benchmark: RoleBenchmark,
+# ) -> BenchmarkEvaluation:
+
+#     # TOTAL timer
+#     total_start = time.perf_counter()
+
+#     logger.info("=" * 60)
+#     logger.info("Candidate evaluation started.")
+#     logger.info("=" * 60)
+
+#     try:
+
+#         # ====================================================
+#         # STEP 1 — SERIALIZE CANDIDATE
+#         # ====================================================
+
+#         start = time.perf_counter()
+
+#         candidate_json = (
+#             candidate_profile.model_dump_json()
+#         )
+
+#         elapsed = time.perf_counter() - start
+
+#         logger.info(
+#             "Candidate profile serialized in %.4f seconds.",
+#             elapsed,
+#         )
+
+#         logger.info(
+#             "Candidate profile size: %d characters.",
+#             len(candidate_json),
+#         )
+
+
+#         # ====================================================
+#         # STEP 2 — SERIALIZE BENCHMARK
+#         # ====================================================
+
+#         start = time.perf_counter()
+
+#         benchmark_json = (
+#             function_benchmark.model_dump_json()
+#         )
+
+#         elapsed = time.perf_counter() - start
+
+#         logger.info(
+#             "Benchmark serialized in %.4f seconds.",
+#             elapsed,
+#         )
+
+#         logger.info(
+#             "Benchmark size: %d characters.",
+#             len(benchmark_json),
+#         )
+
+#         logger.info(
+#             "Benchmark dimensions: %d.",
+#             len(function_benchmark.dimensions),
+#         )
+
+
+#         # ====================================================
+#         # STEP 3 — BUILD PROMPT
+#         # ====================================================
+
+#         start = time.perf_counter()
+
+#         prompt = f"""
+# You are evaluating a candidate against a predefined
+# professional benchmark.
+
+# CANDIDATE PROFILE:
+
+# {candidate_json}
+
+# BENCHMARK:
+
+# {benchmark_json}
+
+
+# INSTRUCTIONS:
+
+# Evaluate the candidate on EVERY benchmark dimension.
+
+# For each dimension:
+
+# 1. Give a score from 0 to 10.
+
+# 2. Use only evidence available in the candidate profile.
+
+# 3. List evidence supporting the score.
+
+# 4. Explain why the evidence justifies the score.
+
+# 5. Do not invent missing achievements or responsibilities.
+
+# 6. Missing information means "not evidenced",
+#    not necessarily poor ability.
+
+# 7. Identify actions or outcomes that demonstrate
+#    the capability.
+
+# 8. Identify important missing information as
+#    evidence gaps.
+
+# 9. Explain why the available evidence and evidence
+#    gaps justify the score, including why the evidence
+#    does not support a materially higher score.
+
+
+# IMPORTANT EVIDENCE RULES:
+
+# - Designation and years of experience are context only.
+
+# - Do not use designation alone as evidence of
+#   leadership, strategic responsibility,
+#   stakeholder altitude, scope or business impact.
+
+# - Do not assume that a Director, VP, Manager
+#   or another senior title automatically demonstrates
+#   the expected capability.
+
+# - Prefer explicit evidence such as:
+#   team size,
+#   revenue owned,
+#   portfolio size,
+#   budget ownership,
+#   target attainment,
+#   markets handled,
+#   deal complexity,
+#   stakeholder level,
+#   measurable business outcomes,
+#   transformation ownership.
+
+# - Skills listed without supporting experience
+#   are weaker evidence than demonstrated achievements.
+
+# - If something is implied but not explicitly supported,
+#   state "not clearly evidenced".
+
+# - Do not invent evidence.
+
+
+# EVIDENCE INTERPRETATION:
+
+# - Scope is not automatically evidence of quality.
+
+# - A large team demonstrates leadership scope,
+#   but does not automatically demonstrate coaching,
+#   mentoring, talent development or retention.
+
+# - Do not use evidence from one capability as proof
+#   of another unless explicitly supported.
+
+# - Do not invent causal relationships.
+
+
+# STRENGTHS:
+
+# - Return at least 2 specific strengths.
+
+# - Every strength must be supported by explicit
+#   candidate evidence.
+
+# - Do not use designation or experience alone
+#   as a strength.
+
+
+# WEAKNESSES:
+
+# - Return at least 2 weaknesses OR evidence gaps.
+
+# - Missing evidence must be described as an
+#   evidence gap, not automatically as a weakness.
+
+# - Do not invent weaknesses.
+
+
+# IMPROVEMENTS:
+
+# - Return at least 2 practical improvements.
+
+# - Improvements should address capability gaps
+#   or evidence gaps.
+
+# - Avoid generic advice.
+
+
+# OVERALL ANALYSIS:
+
+# - Summarize overall alignment with the benchmark.
+
+# - Clearly distinguish demonstrated strengths
+#   from areas that are not evidenced.
+
+# - Do not introduce new evidence.
+
+
+# IMPORTANT:
+
+# - Do not add benchmark dimensions.
+
+# - Do not remove benchmark dimensions.
+
+# - Use benchmark dimensions exactly as supplied.
+# """
+
+#         elapsed = time.perf_counter() - start
+
+#         logger.info(
+#             "Prompt created in %.4f seconds.",
+#             elapsed,
+#         )
+
+#         logger.info(
+#             "Final prompt size: %d characters.",
+#             len(prompt),
+#         )
+
+
+#         # ====================================================
+#         # STEP 4 — GEMINI CALL
+#         # ====================================================
+
+#         logger.info(
+#             "Sending candidate evaluation to Gemini..."
+#         )
+
+#         gemini_start = time.perf_counter()
+
+#         try:
+
+#             response = client.models.generate_content(
+#                 model=MODEL_NAME,
+#                 contents=prompt,
+#                 config=types.GenerateContentConfig(
+#                     temperature=0,
+#                     response_mime_type="application/json",
+#                     response_schema=BenchmarkEvaluation,
+#                 ),
+#             )
+
+#         except Exception:
+
+#             gemini_elapsed = (
+#                 time.perf_counter()
+#                 - gemini_start
+#             )
+
+#             logger.exception(
+#                 "Gemini API call FAILED after %.2f seconds.",
+#                 gemini_elapsed,
+#             )
+
+#             raise
+
+
+#         gemini_elapsed = (
+#             time.perf_counter()
+#             - gemini_start
+#         )
+
+#         logger.info(
+#             "Gemini returned in %.2f seconds.",
+#             gemini_elapsed,
+#         )
+
+
+#         # ====================================================
+#         # STEP 5 — INSPECT RESPONSE
+#         # ====================================================
+
+#         response_text = response.text
+
+#         if response_text is None:
+
+#             logger.error(
+#                 "Gemini response.text is None."
+#             )
+
+#             raise ValueError(
+#                 "Gemini returned no response text."
+#             )
+
+
+#         logger.info(
+#             "Gemini response size: %d characters.",
+#             len(response_text),
+#         )
+
+
+#         # IMPORTANT:
+#         # Do not normally dump candidate data into logs
+#         # in production because resumes contain PII.
+#         #
+#         # For debugging JSON format, showing only the first
+#         # 300 characters is usually enough.
+
+#         logger.info(
+#             "Gemini response preview: %r",
+#             response_text[:300],
+#         )
+
+
+#         # ====================================================
+#         # STEP 6 — PYDANTIC JSON VALIDATION
+#         # ====================================================
+
+#         logger.info(
+#             "Starting Pydantic validation..."
+#         )
+
+#         validation_start = time.perf_counter()
+
+#         try:
+
+#             evaluation = (
+#                 BenchmarkEvaluation.model_validate_json(
+#                     response_text
+#                 )
+#             )
+
+#         except ValidationError:
+
+#             validation_elapsed = (
+#                 time.perf_counter()
+#                 - validation_start
+#             )
+
+#             logger.exception(
+#                 "Pydantic validation FAILED "
+#                 "after %.4f seconds.",
+#                 validation_elapsed,
+#             )
+
+#             logger.error(
+#                 "Invalid Gemini response starts with: %r",
+#                 response_text[:500],
+#             )
+
+#             raise
+
+
+#         validation_elapsed = (
+#             time.perf_counter()
+#             - validation_start
+#         )
+
+#         logger.info(
+#             "Pydantic validation completed "
+#             "in %.4f seconds.",
+#             validation_elapsed,
+#         )
+
+
+#         # ====================================================
+#         # STEP 7 — BUSINESS VALIDATION
+#         # ====================================================
+
+#         try:
+
+#             validate_evaluation(
+#                 evaluation,
+#                 function_benchmark,
+#             )
+
+#         except ValueError:
+
+#             logger.exception(
+#                 "Business-rule validation FAILED."
+#             )
+
+#             raise
+
+
+#         # ====================================================
+#         # FINISHED
+#         # ====================================================
+
+#         total_elapsed = (
+#             time.perf_counter()
+#             - total_start
+#         )
+
+#         logger.info("=" * 60)
+
+#         logger.info(
+#             "Candidate evaluation COMPLETE "
+#             "in %.2f seconds.",
+#             total_elapsed,
+#         )
+
+#         logger.info("=" * 60)
+
+#         return evaluation
+
+
+#     # ========================================================
+#     # CATCH ANY FAILURE FROM THE WHOLE PIPELINE
+#     # ========================================================
+
+#     except Exception:
+
+#         total_elapsed = (
+#             time.perf_counter()
+#             - total_start
+#         )
+
+#         logger.exception(
+#             "Candidate evaluation FAILED "
+#             "after %.2f seconds.",
+#             total_elapsed,
+#         )
+
+#         raise
+
+"""New with gemini lite"""
+
+# app/services/candidate_evaluator.py
+
+import logging
+import time
+
 from pydantic import ValidationError
 
 from app.models.candidate_profile import CandidateProfile
 from app.models.role_benchmark import RoleBenchmark
 from app.models.benchmark_score import BenchmarkEvaluation
 
+from app.services.gemini_service import (
+    generate_structured_response,
+)
+
 
 # ============================================================
 # LOGGING
 # ============================================================
 
-logging.basicConfig(
-    level=logging.INFO,
-    format=(
-        "%(asctime)s | "
-        "%(levelname)s | "
-        "%(name)s | "
-        "%(message)s"
-    ),
-)
-
 logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# CONFIGURATION
-# ============================================================
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ENV_PATH = PROJECT_ROOT / ".env"
-
-load_dotenv(ENV_PATH)
-
-api_key = os.getenv("GEMINI_API_KEY")
-
-if not api_key:
-    raise ValueError(
-        f"GEMINI_API_KEY not found in {ENV_PATH}"
-    )
-
-
-client = genai.Client(
-    api_key=api_key
-)
-
-MODEL_NAME = "gemini-2.5-flash"
-
-
-# ============================================================
-# VALIDATION
+# BUSINESS VALIDATION
 # ============================================================
 
 def validate_evaluation(
@@ -589,51 +1091,59 @@ def validate_evaluation(
 ) -> None:
 
     logger.info(
-        "Starting business-rule validation."
+        "Starting business validation."
     )
 
     start = time.perf_counter()
 
-    # Every benchmark dimension should have a score
-    if len(evaluation.dimension_scores) != len(
-        benchmark.dimensions
+
+    if (
+        len(evaluation.dimension_scores)
+        != len(benchmark.dimensions)
     ):
+
         raise ValueError(
-            "Evaluation does not contain a score "
-            "for every benchmark dimension."
+            "Evaluation does not contain "
+            "a score for every benchmark dimension."
         )
 
-    # Strengths
+
     if len(evaluation.strengths) < 2:
+
         raise ValueError(
-            "Evaluation must contain at least "
-            "2 evidence-based strengths."
+            "Evaluation requires at least "
+            "2 strengths."
         )
 
-    # Weaknesses
+
     if len(evaluation.weaknesses) < 2:
+
         raise ValueError(
-            "Evaluation must contain at least "
-            "2 weaknesses or evidence gaps."
+            "Evaluation requires at least "
+            "2 weaknesses/evidence gaps."
         )
 
-    # Improvements
+
     if len(evaluation.improvements) < 2:
+
         raise ValueError(
-            "Evaluation must contain at least "
-            "2 practical improvements."
+            "Evaluation requires at least "
+            "2 improvements."
         )
 
-    elapsed = time.perf_counter() - start
 
     logger.info(
-        "Business validation completed in %.4f seconds.",
-        elapsed,
+        "Business validation complete "
+        "in %.4f seconds.",
+        (
+            time.perf_counter()
+            - start
+        ),
     )
 
 
 # ============================================================
-# CANDIDATE EVALUATOR
+# CANDIDATE EVALUATION
 # ============================================================
 
 def eval_candidate(
@@ -641,71 +1151,60 @@ def eval_candidate(
     function_benchmark: RoleBenchmark,
 ) -> BenchmarkEvaluation:
 
-    # TOTAL timer
-    total_start = time.perf_counter()
+    total_start = (
+        time.perf_counter()
+    )
+
 
     logger.info("=" * 60)
-    logger.info("Candidate evaluation started.")
+
+    logger.info(
+        "Candidate evaluation started."
+    )
+
     logger.info("=" * 60)
+
 
     try:
 
         # ====================================================
-        # STEP 1 — SERIALIZE CANDIDATE
+        # SERIALIZATION
         # ====================================================
-
-        start = time.perf_counter()
 
         candidate_json = (
             candidate_profile.model_dump_json()
         )
 
-        elapsed = time.perf_counter() - start
-
-        logger.info(
-            "Candidate profile serialized in %.4f seconds.",
-            elapsed,
-        )
-
-        logger.info(
-            "Candidate profile size: %d characters.",
-            len(candidate_json),
-        )
-
-
-        # ====================================================
-        # STEP 2 — SERIALIZE BENCHMARK
-        # ====================================================
-
-        start = time.perf_counter()
-
         benchmark_json = (
             function_benchmark.model_dump_json()
         )
 
-        elapsed = time.perf_counter() - start
 
         logger.info(
-            "Benchmark serialized in %.4f seconds.",
-            elapsed,
+            "Candidate profile size: "
+            "%d characters.",
+            len(candidate_json),
         )
 
+
         logger.info(
-            "Benchmark size: %d characters.",
+            "Benchmark size: "
+            "%d characters.",
             len(benchmark_json),
         )
 
+
         logger.info(
-            "Benchmark dimensions: %d.",
-            len(function_benchmark.dimensions),
+            "Benchmark dimensions: %d",
+            len(
+                function_benchmark.dimensions
+            ),
         )
 
 
         # ====================================================
-        # STEP 3 — BUILD PROMPT
+        # PROMPT
         # ====================================================
-
-        start = time.perf_counter()
 
         prompt = f"""
 You are evaluating a candidate against a predefined
@@ -715,343 +1214,297 @@ CANDIDATE PROFILE:
 
 {candidate_json}
 
+
 BENCHMARK:
 
 {benchmark_json}
 
 
-INSTRUCTIONS:
-
 Evaluate the candidate on EVERY benchmark dimension.
 
-For each dimension:
+
+FOR EACH DIMENSION:
 
 1. Give a score from 0 to 10.
 
-2. Use only evidence available in the candidate profile.
+2. Use only explicit evidence contained in
+   the candidate profile.
 
-3. List evidence supporting the score.
+3. List the evidence supporting the score.
 
 4. Explain why the evidence justifies the score.
 
-5. Do not invent missing achievements or responsibilities.
+5. Identify important missing evidence.
 
-6. Missing information means "not evidenced",
-   not necessarily poor ability.
-
-7. Identify actions or outcomes that demonstrate
-   the capability.
-
-8. Identify important missing information as
-   evidence gaps.
-
-9. Explain why the available evidence and evidence
-   gaps justify the score, including why the evidence
-   does not support a materially higher score.
+6. Explain why the evidence does not support
+   a materially higher score.
 
 
-IMPORTANT EVIDENCE RULES:
+EVIDENCE RULES:
 
-- Designation and years of experience are context only.
+- Never invent evidence.
 
-- Do not use designation alone as evidence of
-  leadership, strategic responsibility,
-  stakeholder altitude, scope or business impact.
+- Missing information means "not evidenced",
+  not proof of poor capability.
 
-- Do not assume that a Director, VP, Manager
-  or another senior title automatically demonstrates
-  the expected capability.
+- Designation and years of experience are
+  context only.
+
+- Do NOT use designation alone as evidence
+  of leadership, strategy, scope,
+  stakeholder altitude or business impact.
+
+- Do not assume that Director, VP,
+  General Manager, Manager or other
+  senior titles prove capability.
 
 - Prefer explicit evidence such as:
+
   team size,
-  revenue owned,
+  revenue responsibility,
   portfolio size,
   budget ownership,
-  target attainment,
   markets handled,
-  deal complexity,
   stakeholder level,
-  measurable business outcomes,
+  deal complexity,
+  measurable outcomes,
   transformation ownership.
 
-- Skills listed without supporting experience
-  are weaker evidence than demonstrated achievements.
+- Skills without demonstrated application
+  are weaker evidence.
 
-- If something is implied but not explicitly supported,
-  state "not clearly evidenced".
+- Evidence of scope is not automatically
+  evidence of quality.
 
-- Do not invent evidence.
+- Do not infer causal relationships
+  that are not explicitly supported.
 
+Example:
 
-EVIDENCE INTERPRETATION:
-
-- Scope is not automatically evidence of quality.
-
-- A large team demonstrates leadership scope,
-  but does not automatically demonstrate coaching,
-  mentoring, talent development or retention.
-
-- Do not use evidence from one capability as proof
-  of another unless explicitly supported.
-
-- Do not invent causal relationships.
+If revenue increased by 20%,
+do NOT claim leadership or coaching
+caused the increase unless the profile
+explicitly establishes that relationship.
 
 
 STRENGTHS:
 
-- Return at least 2 specific strengths.
+- Return at least 2 strengths.
 
-- Every strength must be supported by explicit
-  candidate evidence.
-
-- Do not use designation or experience alone
-  as a strength.
+- Every strength must be supported by
+  explicit candidate evidence.
 
 
-WEAKNESSES:
+WEAKNESSES / EVIDENCE GAPS:
 
-- Return at least 2 weaknesses OR evidence gaps.
+- Return at least 2.
 
-- Missing evidence must be described as an
-  evidence gap, not automatically as a weakness.
-
-- Do not invent weaknesses.
+- Missing evidence must be described as
+  an evidence gap rather than automatically
+  as poor capability.
 
 
 IMPROVEMENTS:
 
 - Return at least 2 practical improvements.
 
-- Improvements should address capability gaps
-  or evidence gaps.
+- Improvements should address capability
+  gaps or evidence gaps.
 
 - Avoid generic advice.
 
 
 OVERALL ANALYSIS:
 
-- Summarize overall alignment with the benchmark.
+- Summarize overall alignment.
 
 - Clearly distinguish demonstrated strengths
-  from areas that are not evidenced.
+  from areas not evidenced.
 
 - Do not introduce new evidence.
 
 
-IMPORTANT:
+BENCHMARK RULES:
 
 - Do not add benchmark dimensions.
 
 - Do not remove benchmark dimensions.
 
-- Use benchmark dimensions exactly as supplied.
+- Use benchmark dimensions exactly
+  as supplied.
 """
 
-        elapsed = time.perf_counter() - start
 
         logger.info(
-            "Prompt created in %.4f seconds.",
-            elapsed,
-        )
-
-        logger.info(
-            "Final prompt size: %d characters.",
+            "Evaluation prompt size: "
+            "%d characters.",
             len(prompt),
         )
 
 
         # ====================================================
-        # STEP 4 — GEMINI CALL
+        # GEMINI + FAILOVER
         # ====================================================
 
         logger.info(
-            "Sending candidate evaluation to Gemini..."
+            "Sending candidate evaluation "
+            "to AI service..."
         )
 
-        gemini_start = time.perf_counter()
+
+        llm_start = (
+            time.perf_counter()
+        )
+
 
         try:
 
-            response = client.models.generate_content(
-                model=MODEL_NAME,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0,
-                    response_mime_type="application/json",
-                    response_schema=BenchmarkEvaluation,
-                ),
+            response = (
+                generate_structured_response(
+                    prompt=prompt,
+                    schema=BenchmarkEvaluation,
+                )
             )
 
         except Exception:
 
-            gemini_elapsed = (
-                time.perf_counter()
-                - gemini_start
-            )
-
             logger.exception(
-                "Gemini API call FAILED after %.2f seconds.",
-                gemini_elapsed,
+                "Candidate AI evaluation failed "
+                "after %.2f seconds.",
+                (
+                    time.perf_counter()
+                    - llm_start
+                ),
             )
 
             raise
 
 
-        gemini_elapsed = (
-            time.perf_counter()
-            - gemini_start
-        )
-
         logger.info(
-            "Gemini returned in %.2f seconds.",
-            gemini_elapsed,
+            "Candidate AI call returned "
+            "in %.2f seconds.",
+            (
+                time.perf_counter()
+                - llm_start
+            ),
         )
 
 
         # ====================================================
-        # STEP 5 — INSPECT RESPONSE
+        # RESPONSE
         # ====================================================
 
-        response_text = response.text
+        response_text = (
+            response.text
+        )
 
-        if response_text is None:
 
-            logger.error(
-                "Gemini response.text is None."
-            )
+        if not response_text:
 
             raise ValueError(
-                "Gemini returned no response text."
+                "AI service returned "
+                "an empty evaluation."
             )
 
 
         logger.info(
-            "Gemini response size: %d characters.",
+            "Evaluation response size: "
+            "%d characters.",
             len(response_text),
         )
 
 
-        # IMPORTANT:
-        # Do not normally dump candidate data into logs
-        # in production because resumes contain PII.
-        #
-        # For debugging JSON format, showing only the first
-        # 300 characters is usually enough.
-
-        logger.info(
-            "Gemini response preview: %r",
+        logger.debug(
+            "Evaluation response preview: %r",
             response_text[:300],
         )
 
 
         # ====================================================
-        # STEP 6 — PYDANTIC JSON VALIDATION
+        # PYDANTIC
         # ====================================================
 
-        logger.info(
-            "Starting Pydantic validation..."
+        validation_start = (
+            time.perf_counter()
         )
 
-        validation_start = time.perf_counter()
 
         try:
 
             evaluation = (
-                BenchmarkEvaluation.model_validate_json(
+                BenchmarkEvaluation
+                .model_validate_json(
                     response_text
                 )
             )
 
         except ValidationError:
 
-            validation_elapsed = (
-                time.perf_counter()
-                - validation_start
-            )
-
             logger.exception(
-                "Pydantic validation FAILED "
-                "after %.4f seconds.",
-                validation_elapsed,
+                "BenchmarkEvaluation "
+                "Pydantic validation failed."
             )
 
             logger.error(
-                "Invalid Gemini response starts with: %r",
+                "Response starts with: %r",
                 response_text[:500],
             )
 
             raise
 
 
-        validation_elapsed = (
-            time.perf_counter()
-            - validation_start
-        )
-
         logger.info(
-            "Pydantic validation completed "
-            "in %.4f seconds.",
-            validation_elapsed,
+            "Pydantic validation: %.4fs",
+            (
+                time.perf_counter()
+                - validation_start
+            ),
         )
 
 
         # ====================================================
-        # STEP 7 — BUSINESS VALIDATION
+        # BUSINESS VALIDATION
         # ====================================================
 
-        try:
-
-            validate_evaluation(
-                evaluation,
-                function_benchmark,
-            )
-
-        except ValueError:
-
-            logger.exception(
-                "Business-rule validation FAILED."
-            )
-
-            raise
+        validate_evaluation(
+            evaluation,
+            function_benchmark,
+        )
 
 
         # ====================================================
-        # FINISHED
+        # COMPLETE
         # ====================================================
 
-        total_elapsed = (
+        elapsed = (
             time.perf_counter()
             - total_start
         )
+
 
         logger.info("=" * 60)
 
         logger.info(
             "Candidate evaluation COMPLETE "
             "in %.2f seconds.",
-            total_elapsed,
+            elapsed,
         )
 
         logger.info("=" * 60)
 
+
         return evaluation
 
 
-    # ========================================================
-    # CATCH ANY FAILURE FROM THE WHOLE PIPELINE
-    # ========================================================
-
     except Exception:
-
-        total_elapsed = (
-            time.perf_counter()
-            - total_start
-        )
 
         logger.exception(
             "Candidate evaluation FAILED "
             "after %.2f seconds.",
-            total_elapsed,
+            (
+                time.perf_counter()
+                - total_start
+            ),
         )
 
         raise
