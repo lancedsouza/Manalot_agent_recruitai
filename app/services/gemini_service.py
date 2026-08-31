@@ -51,8 +51,8 @@ client = genai.Client(
 # MODELS
 # ============================================================
 
-PRIMARY_MODEL = "gemini-2.5-flash"
-FALLBACK_MODEL = "gemini-2.5-flash-lite"
+PRIMARY_MODEL = "gemini-3.5-flash"
+FALLBACK_MODEL = "gemini-3.5-flash-lite"
 
 
 # ============================================================
@@ -192,6 +192,7 @@ def generate_structured_response(
                 last_error = error
 
                 code = _status_code(error)
+                
 
                 logger.warning(
                     "%s server error after %.2fs "
