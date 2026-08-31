@@ -2320,3 +2320,13 @@ def extract_resume_data(
 
 
         raise
+
+if __name__ == "__main__":
+        from pathlib import Path
+        pdf_path = Path(
+            "/mnt/c/Users/User/Manlot/Annil Raikundlia - Lance/Medline/Sr.Mgr FP&A/Sent/Manalot_Anup_Dubey.pdf"
+        )
+        print("Starting resume extraction...")
+        resume = extract_resume_data(pdf_path)
+        print("Finished.")
+        print(resume.model_dump())
