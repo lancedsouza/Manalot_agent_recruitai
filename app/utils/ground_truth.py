@@ -38,3 +38,5 @@ GROUND_TRUTH_DATA = {
         "IRDA Reporting", "Statutory Audit"
     ]
 }
+
+ground_truth_skills = GROUND_TRUTH_DATA.get("anup dubey", [])

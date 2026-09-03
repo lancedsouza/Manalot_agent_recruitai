@@ -1,22 +1,19 @@
-from app.db.database import SessionLocal
-from app.db.models import Candidate
+from pathlib import Path
+
+from app.services.resume_extractor import extract_resume_data
 
 
-session = SessionLocal()
-
-
-candidate = Candidate(
-    name="John Smith",
-    experience_years=8.0,
-    skills=["Python", "SQL", "PostgreSQL"],
-    resume_text="Python developer with 8 years of experience."
+folder_path = Path(
+    "/mnt/c/Users/User/Manlot/Annil Raikundlia - Lance/Medline/Sr.Mgr FP&A/test"
 )
 
-session.add(candidate)
 
-session.commit()
+if __name__ == "__main__":
 
-print("Candidate inserted!")
-print("Candidate ID:", candidate.id)
+    for pdf_path in folder_path.glob("*.pdf"):
 
-session.close()
+        print(f"\nProcessing: {pdf_path.name}")
+
+        resume_data = extract_resume_data(pdf_path)
+
+        print(resume_data)
