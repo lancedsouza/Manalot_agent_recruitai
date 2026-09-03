@@ -4,29 +4,42 @@ from app.db.models import Candidate
 from app.utils.similarity import similarity
 from statistics import mean as average
 
-session = SessionLocal()
 
-jd_parts = session.query(JD).all()
+def match_candidates_with_jd(min_experience=0):
 
-candidates = (
-    session.query(Candidate)
-    .filter(Candidate.experience_years >= 5)
-    .all()
-)
+    session = SessionLocal()
 
-for candidate in candidates:
+    jd_parts = session.query(JD).all()
 
-    scores = []
+    candidates = (
+        session.query(Candidate)
+        .filter(Candidate.experience_years >= min_experience)
+        .all()
+    )
 
-    for jd_part in jd_parts:
+    results = []
 
-        score = similarity(
-            jd_part.embedding,
-            candidate.embedding
-        )
+    for candidate in candidates:
 
-        scores.append(score)
+        scores = []
 
-    overall_score = average(scores)
+        for jd_part in jd_parts:
 
-    print(candidate.name, overall_score)
+            score = similarity(
+                jd_part.embedding,
+                candidate.embedding
+            )
+
+            scores.append(score)
+
+        overall_score = average(scores)
+
+        results.append({
+            "Candidate": candidate.name,
+            "Experience": candidate.experience_years,
+            "Similarity": round(overall_score, 4)
+        })
+
+    session.close()
+
+    return results
