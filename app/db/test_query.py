@@ -1,5 +1,6 @@
 from app.db.database import SessionLocal
 from app.db.models import Candidate
+from app.db_jd.db import SessionLocal as JDSessionLocal
 
 session = SessionLocal()
 

@@ -13,3 +13,7 @@ pydantic
 langgraph
 fastapi
 langchain_community
+psycopg2-binary
+pgvector
+sqlalchemy
+streamlit

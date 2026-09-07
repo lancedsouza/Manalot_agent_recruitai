@@ -18,7 +18,7 @@ class JD(Base):
     title = Column(
         String,
         nullable=False,
-        default="Sr. Manager-FP&A",
+        
     )
 
     description = Column(
