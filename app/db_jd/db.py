@@ -5,8 +5,8 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv()
 
-url = os.getenv("DATABASE_URL") 
-print("DATABASE_URL loaded:", url)
+DATABASE_URL=os.getenv("DATABASE_URL") 
+print("DATABASE_URL loaded:", DATABASE_URL)
 if not url:
     raise ValueError("DATABASE_URL not found in .env")  
 
