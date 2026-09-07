@@ -11,7 +11,7 @@ if not url:
     raise ValueError("DATABASE_URL not found in .env")  
 
 engine = create_engine(
-    url,
+    DATABASE_URL,
     echo=True
 )
 
