@@ -18,3 +18,4 @@ pgvector
 sqlalchemy
 streamlit
 docx2txt
+pypdf
