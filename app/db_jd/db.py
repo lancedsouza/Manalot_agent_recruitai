@@ -1,25 +1,25 @@
 import os
+
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 load_dotenv()
 
-DATABASE_URL=os.getenv("DATABASE_URL") 
-print("DATABASE_URL loaded:", DATABASE_URL)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL not found in .env")  
+    raise ValueError("DATABASE_URL not configured")
 
 engine = create_engine(
     DATABASE_URL,
-    echo=True
+    pool_pre_ping=True,
 )
 
 Base = declarative_base()
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-if __name__ == "__main__":
-    # Example usage: Create a new session and print the engine URL
-    session = SessionLocal()
-    print(f"Connected to database at: {engine.url}")
-    session.close()
+SessionLocal = sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+)

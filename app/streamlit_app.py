@@ -1075,9 +1075,17 @@ from app.db_jd.db import SessionLocal
 from app.db_jd.jd_models import JD
 from app.services.embedding_service import create_embedding
 from app.utils.similarity import similarity
+import streamlit as st
+
 from app.db_jd.init_db_jd import init_db
 
-init_db()
+
+@st.cache_resource
+def initialize_database():
+    init_db()
+
+
+initialize_database()
 
 
 # ============================================================

@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, Float, Text
-from sqlalchemy.dialects.postgresql import ARRAY        
+from sqlalchemy import Column, Integer, String, Text
 from pgvector.sqlalchemy import Vector
+
 from app.db_jd.db import Base
 
 
@@ -11,22 +11,18 @@ class JD(Base):
     chunk_index = Column(
         Integer,
         primary_key=True,
-        nullable=False,
         autoincrement=True,
     )
 
     title = Column(
         String,
         nullable=False,
-        
     )
 
     description = Column(
         Text,
         nullable=False,
     )
-
-    
 
     embedding = Column(
         Vector(768),
